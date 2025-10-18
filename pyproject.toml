@@ -1,0 +1,51 @@
+[project]
+name = "ped"
+version = "0.1.0"
+description = "Pronunciation Error Detection core"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "python-Levenshtein>=0.20",
+  "jiwer>=3.0",
+]
+
+[project.optional-dependencies]
+ml = [
+  "faster-whisper>=0.10",
+  "torch>=2.0",
+  "torchaudio>=2.0",
+  "spacy>=3.7",
+  "phonemizer>=3.2",
+  "g2p-en>=2.1",
+]
+
+dev = [
+  "pytest>=7.0",
+  "ruff>=0.5.0",
+  "mypy>=1.8.0",
+  "pre-commit>=3.5",
+]
+
+experiments = [
+  "jupyter>=1.0",
+  "matplotlib>=3.8",
+  "pandas>=2.1",
+  "seaborn>=0.13",
+  "ipykernel>=6.25",
+]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ped"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+strict = false
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
