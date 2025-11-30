@@ -1,0 +1,9 @@
+{
+  "total_speakers": 15,
+  "total_languages": 10,
+  "avg_wer": 0.25873015873015875,
+  "avg_errors_per_speaker": 1.5333333333333334,
+  "total_substitutions": 23,
+  "total_deletions": 0,
+  "total_insertions": 0
+}

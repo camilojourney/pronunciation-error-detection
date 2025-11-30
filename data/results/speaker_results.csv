@@ -1,0 +1,16 @@
+speaker_id,native_language,reference,hypothesis,wer,total_errors,insertions,deletions,substitutions,error_rate
+arabic_01,Arabic,The weather is very nice today,The weazer is wery nice today,0.3333333333333333,2,0,0,2,0.3333333333333333
+spanish_01,Spanish,I need to finish my homework,I need to feenish my homework,0.16666666666666666,1,0,0,1,0.16666666666666666
+chinese_01,Mandarin,The restaurant is very expensive,The lestaurant is vely expensive,0.4,2,0,0,2,0.4
+korean_01,Korean,Please repeat what you said,Please lepeat what you said,0.2,1,0,0,1,0.2
+hindi_01,Hindi,I will visit the museum tomorrow,I will wisit the museum tomorrow,0.16666666666666666,1,0,0,1,0.16666666666666666
+arabic_02,Arabic,Can you help me with this problem,Can you help me wis zis broblem,0.42857142857142855,3,0,0,3,0.42857142857142855
+spanish_02,Spanish,The book is on the table,The book is on the tebol,0.16666666666666666,1,0,0,1,0.16666666666666666
+chinese_02,Mandarin,I really like chocolate ice cream,I leally like chocolate ice cleam,0.3333333333333333,2,0,0,2,0.3333333333333333
+korean_02,Korean,The flight leaves at three o'clock,The plight leaves at three o'clock,0.16666666666666666,1,0,0,1,0.16666666666666666
+hindi_02,Hindi,Where is the nearest pharmacy,Where is the nearest parmacy,0.2,1,0,0,1,0.2
+french_01,French,The meeting starts in five minutes,Ze meeting starts in five minutes,0.16666666666666666,1,0,0,1,0.16666666666666666
+german_01,German,I think this is a good idea,I sink zis is a good idea,0.2857142857142857,2,0,0,2,0.2857142857142857
+japanese_01,Japanese,The library closes at seven,The library closes at seben,0.2,1,0,0,1,0.2
+russian_01,Russian,This is a very important question,Zis is a verry important kvestion,0.5,3,0,0,3,0.5
+vietnamese_01,Vietnamese,I want to learn English better,I want to learn Englih better,0.16666666666666666,1,0,0,1,0.16666666666666666
