@@ -29,5 +29,9 @@ data/processed/
 artifacts/
 models/
 
+# L2-ARCTIC dataset (too large for git)
+l2arctic_release_v5/
+data/
+
 # VS Code
 .vscode/

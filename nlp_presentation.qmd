@@ -1,13 +1,13 @@
 ---
 title: "Pronunciation Error Detection in Non-Native English Speakers"
-subtitle: "An NLP Approach Using Sequence Alignment and ASR"
-author: "Your Name"
+subtitle: "NLP Analysis Using L2-ARCTIC Speech Corpus"
+author: "Camilo Martinez"
 date: today
 format:
   html:
     toc: true
     toc-depth: 3
-    code-fold: true
+    code-fold: show
     code-tools: true
     theme: cosmo
     highlight-style: github
@@ -18,761 +18,1081 @@ execute:
   message: false
 ---
 
-# Executive Summary
+# 1. Project Overview
 
-This project implements an **automatic pronunciation error detection system** for non-native English speakers using Natural Language Processing techniques. The system combines:
+This project analyzes pronunciation errors in non-native English speakers using the L2-ARCTIC speech corpus. We apply Natural Language Processing techniques to:
 
-- **Automatic Speech Recognition (ASR)** using Whisper to transcribe spoken audio
-- **Sequence alignment algorithms** to compare transcribed text with reference text
-- **Error classification** to identify insertion, deletion, and substitution errors
-- **Statistical analysis** to discover pronunciation patterns across different language backgrounds
+1. Transcribe speech using Automatic Speech Recognition (Whisper)
+2. Align transcriptions with reference text using sequence alignment
+3. Detect and classify pronunciation errors
+4. Analyze error patterns across different language backgrounds
 
-**Key Results:**
+## 1.1 Analysis Utilities Package
 
-- Analyzed **15 speakers** from **10 different language backgrounds**
-- Achieved an average **Word Error Rate (WER) of 25.9%**
-- Identified **23 total pronunciation errors** with detailed classification
-- Discovered systematic error patterns specific to language groups
+The `analysis_utils.py` module is a custom Python package created for this project containing:
 
----
+- **Text preprocessing functions**: Clean and tokenize text
+- **Sequence alignment**: Levenshtein distance-based alignment
+- **Error detection**: Classify substitutions, deletions, insertions
+- **Evaluation metrics**: Word Error Rate (WER) calculation
+- **ASR integration**: Whisper transcription wrapper
+- **Pipeline functions**: End-to-end processing workflows
 
-# 1. Introduction
-
-## 1.1 Project Motivation
-
-Non-native English speakers often face challenges with pronunciation that can hinder effective communication. This project develops an automated system to:
-
-1. **Detect pronunciation errors** by comparing spoken audio to expected text
-2. **Classify error types** (insertions, deletions, substitutions)
-3. **Identify patterns** in errors based on native language background
-4. **Provide quantitative metrics** for pronunciation assessment
-
-## 1.2 Problem Statement
-
-**Given:**
-- Audio recording of a non-native speaker reading English text
-- Reference text (what should have been said)
-
-**Goal:**
-- Automatically identify pronunciation errors
-- Classify the type and location of each error
-- Analyze patterns across different language backgrounds
-
-## 1.3 NLP Techniques Applied
-
-This project demonstrates key NLP concepts:
-
-1. **Text Preprocessing** - Tokenization, normalization, cleaning
-2. **Sequence Alignment** - Comparing two text sequences using edit distance
-3. **Error Analysis** - Systematic categorization of linguistic errors
-4. **Evaluation Metrics** - Word Error Rate (WER), Character Error Rate (CER)
-5. **Pattern Recognition** - Identifying recurring error types
-6. **ASR Integration** - Speech-to-text using Whisper model
-
----
-
-# 2. Methodology
-
-## 2.1 System Architecture
+Let's verify the package is available:
 
 ```{python}
-#| label: fig-architecture
-#| fig-cap: "Pronunciation Error Detection Pipeline"
+# Setup: Add project directory to Python path
+import sys
+import os
 
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+# Get the directory where this notebook is located
+
+# Import our custom analysis utilities
+try:
+    from analysis_utils import (
+        clean_text,
+        tokenize,
+        align_tokens,
+        wer,
+        run_text_pipeline,
+        run_audio_pipeline,
+        get_speaker_language_mapping,
+        analyze_intelligibility,
+        format_intelligibility_feedback,
+        get_minimal_pairs_database
+    )
+    print("✓ analysis_utils package loaded successfully")
+except ImportError as e:
+    print(f"❌ Error importing analysis_utils: {e}")
+    print(f"💡 Make sure analysis_utils.py is in: {os.getcwd()}")
+    raise
+print("\nAvailable functions:")
+print("  Core Functions:")
+print("  - clean_text(): Text normalization")
+print("  - tokenize(): Word tokenization")
+print("  - align_tokens(): Sequence alignment")
+print("  - wer(): Word Error Rate calculation")
+print("  - run_text_pipeline(): Text-based error detection")
+print("  - run_audio_pipeline(): Audio transcription + error detection")
+print("\n  Intelligibility Analysis:")
+print("  - analyze_intelligibility(): Classify errors by impact")
+print("  - format_intelligibility_feedback(): Learner-friendly feedback")
+print("  - get_minimal_pairs_database(): Critical word pairs")
+print("\n  Metadata:")
+print("  - get_speaker_language_mapping(): L2-ARCTIC speaker metadata")
+```
+
+---
+
+# 2. Dataset: L2-ARCTIC Speech Corpus
+
+## 2.1 Dataset Description
+
+**L2-ARCTIC** is a speech corpus from non-native English speakers:
+
+- **Source**: OpenSLR.org/96 (University of Edinburgh)
+- **Speakers**: 24 non-native English speakers
+- **Languages**: Arabic, Mandarin, Hindi, Korean, Spanish, Vietnamese
+- **Content**: CMU ARCTIC phonetically balanced sentences
+- **Format**: 16kHz WAV audio files with transcripts
+
+## 2.2 Load and Explore Dataset
+
+```{python}
+import json
+import pandas as pd
 import numpy as np
+import os
 
-fig, ax = plt.subplots(figsize=(12, 8))
-ax.set_xlim(0, 10)
-ax.set_ylim(0, 10)
-ax.axis('off')
+# Get absolute path to data file
+data_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+manifest_path = os.path.join(data_dir, 'data', 'processed', 'l2arctic_manifest.json')
 
-# Define boxes
-boxes = [
-    {"x": 1, "y": 8, "w": 2, "h": 1, "text": "Audio Input\n(.wav file)", "color": "#E3F2FD"},
-    {"x": 4, "y": 8, "w": 2, "h": 1, "text": "Whisper ASR\nTranscription", "color": "#BBDEFB"},
-    {"x": 7, "y": 8, "w": 2, "h": 1, "text": "Hypothesis\nText", "color": "#90CAF9"},
+print(f"📁 Looking for manifest at: {manifest_path}")
+print(f"✓ File exists: {os.path.exists(manifest_path)}\n")
 
-    {"x": 1, "y": 6, "w": 2, "h": 1, "text": "Reference\nText", "color": "#FFF9C4"},
-    {"x": 4, "y": 6, "w": 2, "h": 1, "text": "Text\nPreprocessing", "color": "#FFF59D"},
-    {"x": 7, "y": 6, "w": 2, "h": 1, "text": "Tokenization", "color": "#FFF176"},
+# Load L2-ARCTIC manifest (created during data preparation)
+with open(manifest_path) as f:
+    l2arctic_data = json.load(f)
 
-    {"x": 2.5, "y": 4, "w": 5, "h": 1, "text": "Sequence Alignment\n(Levenshtein Distance)", "color": "#C8E6C9"},
-
-    {"x": 1, "y": 2, "w": 2, "h": 1, "text": "Error\nClassification", "color": "#FFCCBC"},
-    {"x": 4, "y": 2, "w": 2, "h": 1, "text": "Metrics\n(WER, CER)", "color": "#FFAB91"},
-    {"x": 7, "y": 2, "w": 2, "h": 1, "text": "Pattern\nAnalysis", "color": "#FF8A65"},
-
-    {"x": 2.5, "y": 0.2, "w": 5, "h": 0.8, "text": "Results & Visualizations", "color": "#CE93D8"},
-]
-
-# Draw boxes
-for box in boxes:
-    fancy_box = FancyBboxPatch(
-        (box["x"], box["y"]), box["w"], box["h"],
-        boxstyle="round,pad=0.1",
-        edgecolor="black",
-        facecolor=box["color"],
-        linewidth=2
-    )
-    ax.add_patch(fancy_box)
-    ax.text(
-        box["x"] + box["w"]/2, box["y"] + box["h"]/2,
-        box["text"],
-        ha="center", va="center",
-        fontsize=10,
-        fontweight="bold"
-    )
-
-# Draw arrows
-arrows = [
-    (2, 8.5, 4, 8.5),  # Audio to ASR
-    (6, 8.5, 7, 8.5),  # ASR to Hypothesis
-    (3, 6.5, 4, 6.5),  # Reference to Preprocessing
-    (6, 6.5, 7, 6.5),  # Preprocessing to Tokenization
-    (8, 8, 8, 7),      # Hypothesis down
-    (8, 7, 8, 5),      # To Alignment
-    (8, 6.5, 5, 4.7),  # To Alignment
-    (5, 4, 2, 3),      # Alignment to Error Classification
-    (5, 4, 5, 3),      # Alignment to Metrics
-    (5, 4, 8, 3),      # Alignment to Pattern Analysis
-    (2, 2, 4, 1),      # To Results
-    (5, 2, 5, 1),      # To Results
-    (8, 2, 6, 1),      # To Results
-]
-
-for x1, y1, x2, y2 in arrows:
-    arrow = FancyArrowPatch(
-        (x1, y1), (x2, y2),
-        arrowstyle='->',
-        color='gray',
-        linewidth=2,
-        mutation_scale=20
-    )
-    ax.add_patch(arrow)
-
-plt.title("End-to-End Pronunciation Error Detection Pipeline", fontsize=14, fontweight="bold", pad=20)
-plt.tight_layout()
-plt.show()
+print(f"Total audio files in dataset: {len(l2arctic_data):,}")
+print(f"\nDataset structure (first record):")
+print(json.dumps(l2arctic_data[0], indent=2))
 ```
 
-## 2.2 Text Preprocessing
+## 2.3 Dataset Statistics
 
 ```{python}
-# Demonstrate text preprocessing
-from ped.text import clean_text, tokenize
+# Convert to DataFrame for analysis
+df = pd.DataFrame(l2arctic_data)
 
-example_text = "The Weather is VERY nice today!"
-cleaned = clean_text(example_text)
-tokens = tokenize(example_text)
+print("=" * 70)
+print("L2-ARCTIC DATASET STATISTICS")
+print("=" * 70)
 
-print("Original text:", example_text)
-print("Cleaned text: ", cleaned)
-print("Tokens:       ", tokens)
+# Speaker statistics
+print(f"\nTotal speakers: {df['speaker_id'].nunique()}")
+print(f"Total audio files: {len(df):,}")
+print(f"Average files per speaker: {len(df) / df['speaker_id'].nunique():.0f}")
+
+# Language distribution
+print(f"\nLanguage distribution:")
+lang_counts = df['native_language'].value_counts()
+print(lang_counts)
+
+# Speakers by language
+print(f"\nSpeakers by language:")
+speaker_lang = get_speaker_language_mapping()
+for lang in df['native_language'].unique():
+    speakers = [sid for sid, l in speaker_lang.items() if l == lang]
+    print(f"  {lang}: {speakers}")
 ```
 
-**Preprocessing Steps:**
-
-1. **Lowercase conversion** - Standardize case
-2. **Punctuation removal** - Remove non-alphanumeric characters
-3. **Whitespace normalization** - Collapse multiple spaces
-4. **Tokenization** - Split into word tokens
-
-## 2.3 Sequence Alignment
-
-The system uses **Levenshtein distance** (edit distance) to align reference and hypothesis texts:
+## 2.4 Sample Data
 
 ```{python}
-from ped.text import align_tokens
+# Show sample utterances from different speakers
+print("\nSample utterances from L2-ARCTIC:")
+print("=" * 80)
 
-ref_tokens = ["the", "weather", "is", "very", "nice", "today"]
-hyp_tokens = ["the", "weazer", "is", "wery", "nice", "today"]
+sample_df = df.groupby('native_language').head(2)[['speaker_id', 'native_language', 'reference_text', 'file_id']]
+sample_df.index = range(1, len(sample_df) + 1)
+
+display(sample_df)
+```
+
+---
+
+# 3. Data Preprocessing
+
+## 3.1 Text Preprocessing Functions
+
+Our analysis requires clean, normalized text. The `analysis_utils` package provides preprocessing:
+
+```{python}
+# Example of text preprocessing
+raw_texts = [
+    "Author of the danger trail, Philip Steels, etc.",
+    "The Weather is VERY nice today!",
+    "God bless 'em, I hope I'll go on seeing them forever."
+]
+
+print("Text Preprocessing Examples:")
+print("=" * 80)
+
+for text in raw_texts:
+    cleaned = clean_text(text)
+    tokens = tokenize(text)
+
+    print(f"\nOriginal:  {text}")
+    print(f"Cleaned:   {cleaned}")
+    print(f"Tokens:    {tokens}")
+    print(f"# Tokens:  {len(tokens)}")
+```
+
+**Preprocessing steps:**
+
+1. Convert to lowercase
+2. Remove punctuation
+3. Normalize whitespace
+4. Tokenize into words
+
+## 3.2 Verify Reference Texts
+
+```{python}
+# Check reference text statistics
+df['text_length'] = df['reference_text'].apply(len)
+df['word_count'] = df['reference_text'].apply(lambda x: len(tokenize(x)))
+
+print("Reference Text Statistics:")
+print("=" * 70)
+print(f"Average text length: {df['text_length'].mean():.1f} characters")
+print(f"Average word count: {df['word_count'].mean():.1f} words")
+print(f"Min words: {df['word_count'].min()}")
+print(f"Max words: {df['word_count'].max()}")
+print(f"\nText length distribution:")
+print(df['text_length'].describe())
+```
+
+---
+
+# 4. NLP Methodology
+
+## 4.1 Sequence Alignment
+
+We use **Levenshtein distance** (edit distance) to align reference and hypothesis texts.
+
+```{python}
+# Demonstrate alignment
+ref_text = "the weather is very nice today"
+hyp_text = "the weazer is wery nice today"  # Simulated pronunciation errors
+
+ref_tokens = tokenize(ref_text)
+hyp_tokens = tokenize(hyp_text)
+
+print("Sequence Alignment Example:")
+print("=" * 80)
+print(f"Reference:  {ref_tokens}")
+print(f"Hypothesis: {hyp_tokens}")
+print(f"\nAlignment operations:")
 
 ops = align_tokens(ref_tokens, hyp_tokens)
 
-print("Alignment Operations:")
-for i, op in enumerate(ops):
-    print(f"{i+1}. {op.op:10s} | Ref: {op.ref} | Hyp: {op.hyp}")
+for i, op in enumerate(ops, 1):
+    if op.op == 'equal':
+        print(f"{i}. MATCH:  '{op.ref}' = '{op.hyp}'")
+    elif op.op == 'replace':
+        print(f"{i}. SUBST:  '{op.ref}' → '{op.hyp}' ✗")
+    elif op.op == 'delete':
+        print(f"{i}. DELETE: '{op.ref}' → (omitted) ✗")
+    elif op.op == 'insert':
+        print(f"{i}. INSERT: (none) → '{op.hyp}' ✗")
 ```
 
-**Edit Operations:**
+## 4.2 Error Classification
 
-- **Equal**: Words match exactly
-- **Replace**: Word substitution (pronunciation error)
-- **Delete**: Word omitted from speech
-- **Insert**: Extra word added in speech
-
-## 2.4 Error Classification
+Errors are classified into three types:
 
 ```{python}
-#| label: fig-error-types
-#| fig-cap: "Types of Pronunciation Errors"
+# Test error detection
+test_cases = [
+    ("the weather is nice", "the weather is nice"),           # No errors
+    ("the weather is nice", "the weazer is nice"),           # 1 substitution
+    ("i need to finish work", "i need finish work"),         # 1 deletion
+    ("the book is here", "the book is is here"),             # 1 insertion
+    ("author of the danger trail", "auzor of ze danger trail")  # 2 substitutions
+]
 
-import matplotlib.pyplot as plt
+print("Error Classification Examples:")
+print("=" * 80)
 
-fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+for ref, hyp in test_cases:
+    result = run_text_pipeline(ref, hyp)
 
-# Substitution example
-ax = axes[0]
-ax.axis('off')
-ax.set_title("Substitution Error", fontsize=14, fontweight='bold')
-ax.text(0.5, 0.7, "Reference:", ha='center', fontsize=12, fontweight='bold')
-ax.text(0.5, 0.5, "The weather is nice", ha='center', fontsize=11, family='monospace')
-ax.text(0.5, 0.3, "Hypothesis:", ha='center', fontsize=12, fontweight='bold')
-ax.text(0.5, 0.1, "The weazer is nice", ha='center', fontsize=11, family='monospace')
-ax.add_patch(mpatches.Rectangle((0.35, 0.05), 0.3, 0.08, fill=False, edgecolor='red', linewidth=2))
-ax.text(0.5, -0.1, '"weather" → "weazer"', ha='center', fontsize=10, color='red', style='italic')
+    print(f"\nRef: {ref}")
+    print(f"Hyp: {hyp}")
+    print(f"WER: {result.wer:.2%}")
+    print(f"Errors: S={result.error_analysis.substitution_count}, "
+          f"D={result.error_analysis.deletion_count}, "
+          f"I={result.error_analysis.insertion_count}")
 
-# Deletion example
-ax = axes[1]
-ax.axis('off')
-ax.set_title("Deletion Error", fontsize=14, fontweight='bold')
-ax.text(0.5, 0.7, "Reference:", ha='center', fontsize=12, fontweight='bold')
-ax.text(0.5, 0.5, "I need to finish", ha='center', fontsize=11, family='monospace')
-ax.text(0.5, 0.3, "Hypothesis:", ha='center', fontsize=12, fontweight='bold')
-ax.text(0.5, 0.1, "I need finish", ha='center', fontsize=11, family='monospace')
-ax.add_patch(mpatches.Rectangle((0.25, 0.45), 0.1, 0.08, fill=False, edgecolor='red', linewidth=2))
-ax.text(0.5, -0.1, '"to" deleted', ha='center', fontsize=10, color='red', style='italic')
-
-# Insertion example
-ax = axes[2]
-ax.axis('off')
-ax.set_title("Insertion Error", fontsize=14, fontweight='bold')
-ax.text(0.5, 0.7, "Reference:", ha='center', fontsize=12, fontweight='bold')
-ax.text(0.5, 0.5, "The book is here", ha='center', fontsize=11, family='monospace')
-ax.text(0.5, 0.3, "Hypothesis:", ha='center', fontsize=12, fontweight='bold')
-ax.text(0.5, 0.1, "The book is is here", ha='center', fontsize=11, family='monospace')
-ax.add_patch(mpatches.Rectangle((0.42, 0.05), 0.08, 0.08, fill=False, edgecolor='red', linewidth=2))
-ax.text(0.5, -0.1, 'Extra "is" inserted', ha='center', fontsize=10, color='red', style='italic')
-
-plt.tight_layout()
-plt.show()
+    if result.error_analysis.substitutions:
+        for r, h in result.error_analysis.substitutions:
+            print(f"  → '{r}' became '{h}'")
 ```
 
-## 2.5 Evaluation Metrics
+## 4.3 Word Error Rate (WER)
 
-### Word Error Rate (WER)
+WER is the standard metric for evaluating speech recognition:
 
 $$
 \text{WER} = \frac{S + D + I}{N}
 $$
 
 Where:
-- $S$ = Number of substitutions
-- $D$ = Number of deletions
-- $I$ = Number of insertions
-- $N$ = Total number of words in reference
+- $S$ = Substitutions
+- $D$ = Deletions
+- $I$ = Insertions
+- $N$ = Total words in reference
 
 ```{python}
-from ped.metrics import wer
+# Calculate WER for examples
+print("Word Error Rate Calculation:")
+print("=" * 80)
 
 ref = ["the", "weather", "is", "very", "nice"]
 hyp = ["the", "weazer", "is", "wery", "nice"]
 
 error_rate = wer(ref, hyp)
-print(f"WER: {error_rate:.2%}")
-print(f"Errors: 2 substitutions out of {len(ref)} words")
+
+print(f"Reference: {' '.join(ref)}")
+print(f"Hypothesis: {' '.join(hyp)}")
+print(f"\nSubstitutions: 2 (weather→weazer, very→wery)")
+print(f"Deletions: 0")
+print(f"Insertions: 0")
+print(f"Total words (N): {len(ref)}")
+print(f"\nWER = (2 + 0 + 0) / {len(ref)} = {error_rate:.4f} = {error_rate:.2%}")
 ```
 
 ---
 
-# 3. Experimental Setup
+# 5. Audio Processing with Whisper ASR
 
-## 3.1 Dataset
+## 5.1 Whisper Integration
 
-**Demo Dataset:**
-- **15 speakers** from diverse language backgrounds
-- **10 native languages**: Arabic, Spanish, Mandarin, Korean, Hindi, French, German, Japanese, Russian, Vietnamese
-- Each speaker reads English sentences
-- Simulated pronunciation errors based on known L2 phonetic patterns
+The `run_audio_pipeline()` function transcribes audio using Whisper ASR:
 
 ```{python}
-import json
-import pandas as pd
+print("Whisper ASR Integration:")
+print("=" * 80)
+print("""
+The analysis_utils package includes Whisper ASR transcription:
 
-# Load demo data
-with open('data/processed/demo_data.json') as f:
-    demo_data = json.load(f)
+from analysis_utils import run_audio_pipeline
 
-# Display sample
-df_demo = pd.DataFrame(demo_data)
-print(f"Total speakers: {len(df_demo)}")
-print(f"\nLanguage distribution:")
-print(df_demo['native_language'].value_counts())
+# Process a single audio file
+result = run_audio_pipeline(
+    audio_path='l2arctic_release_v5/ABA/wav/arctic_a0001.wav',
+    ref_text='Author of the danger trail Philip Steels etc',
+    model_size='base'
+)
+
+# Results include:
+#  - Transcribed text
+#  - Word Error Rate
+#  - Error classification
+#  - Alignment operations
+""")
+
+print("\nNote: Whisper transcription requires 'faster-whisper' package:")
+print("  pip install faster-whisper")
 ```
 
-## 3.2 Sample Data
+## 5.2 Processing Pipeline Overview
 
 ```{python}
-# Display first 5 examples
-display_df = df_demo[['speaker_id', 'native_language', 'reference', 'hypothesis']].head()
-pd.set_option('display.max_colwidth', 50)
-display_df
+print("Audio Processing Pipeline:")
+print("=" * 80)
+print("""
+For each audio file in L2-ARCTIC:
+
+1. Load audio file (.wav)
+2. Transcribe using Whisper ASR → hypothesis text
+3. Load reference text from dataset
+4. Preprocess both texts (clean, tokenize)
+5. Align sequences using Levenshtein distance
+6. Detect and classify errors
+7. Calculate WER
+8. Store results
+
+Output for each file:
+  - Speaker ID
+  - Native language
+  - Reference text
+  - Transcribed text (hypothesis)
+  - WER
+  - Error counts (S, D, I)
+  - Specific error details
+""")
 ```
 
 ---
 
-# 4. Results
+# 6. Data Analysis Plan
 
-## 4.1 Overall Performance Metrics
+## 6.1 Analysis Strategy
+
+To analyze pronunciation errors in L2-ARCTIC:
 
 ```{python}
-# Load results
-results_df = pd.read_csv('data/results/speaker_results.csv')
+print("Analysis Workflow:")
+print("=" * 80)
 
-# Display aggregate statistics
-with open('data/results/aggregate_stats.json') as f:
-    stats = json.load(f)
+# Select speakers for analysis
+selected_speakers = ['ABA', 'BWC', 'ASI', 'HJK', 'EBVS']
+speaker_lang_map = get_speaker_language_mapping()
 
-print("=" * 60)
-print("OVERALL PERFORMANCE METRICS")
-print("=" * 60)
-print(f"Total Speakers:            {stats['total_speakers']}")
-print(f"Language Backgrounds:      {stats['total_languages']}")
-print(f"Average WER:               {stats['avg_wer']:.2%}")
-print(f"Avg Errors per Speaker:    {stats['avg_errors_per_speaker']:.2f}")
-print(f"\nError Type Distribution:")
-print(f"  Substitutions:           {stats['total_substitutions']}")
-print(f"  Deletions:               {stats['total_deletions']}")
-print(f"  Insertions:              {stats['total_insertions']}")
-print(f"  Total Errors:            {sum([stats['total_substitutions'], stats['total_deletions'], stats['total_insertions']])}")
-print("=" * 60)
+print("\nSelected speakers for analysis:")
+for speaker in selected_speakers:
+    lang = speaker_lang_map.get(speaker, 'Unknown')
+    count = len(df[df['speaker_id'] == speaker])
+    print(f"  {speaker}: {lang} ({count} utterances)")
+
+# Calculate sample size
+sample_size_per_speaker = 50
+total_files = sample_size_per_speaker * len(selected_speakers)
+
+print(f"\nSample size: {sample_size_per_speaker} utterances per speaker")
+print(f"Total files to process: {total_files}")
+print(f"\nEstimated processing time:")
+print(f"  ~3-5 seconds per file (Whisper base model)")
+print(f"  Total: ~{total_files * 4 / 60:.1f} minutes")
 ```
 
-## 4.2 Error Distribution by Type
+## 6.2 Expected Analysis Outputs
 
 ```{python}
-#| label: fig-error-distribution
-#| fig-cap: "Distribution of Error Types Across All Speakers"
+print("Analysis Deliverables:")
+print("=" * 80)
+print("""
+1. AGGREGATE STATISTICS:
+   - Overall WER across all speakers
+   - WER by native language
+   - WER by individual speaker
+   - Error type distribution (S, D, I)
 
+2. ERROR PATTERNS:
+   - Most common substitutions
+   - Language-specific error patterns
+   - Phonetic transfer patterns
+
+3. VISUALIZATIONS:
+   - WER distribution by language
+   - Error type breakdown
+   - Common substitution patterns
+   - Speaker-level performance
+
+4. DATA TABLES:
+   - Speaker results (CSV)
+   - Error details (CSV)
+   - Substitution patterns (CSV)
+""")
+```
+
+---
+
+# 7. Real Data Analysis: L2-ARCTIC Results
+
+## 7.1 Load Processed Results
+
+First, let's check if we have processed real data:
+
+```{python}
 import matplotlib.pyplot as plt
 import seaborn as sns
+from pathlib import Path
 
-# Prepare data
-error_types = ['Substitutions', 'Deletions', 'Insertions']
-error_counts = [
-    stats['total_substitutions'],
-    stats['total_deletions'],
-    stats['total_insertions']
-]
+# Check if results exist
+results_path = 'data/results/speaker_results.csv'
+error_details_path = 'data/results/error_details.csv'
 
-# Create pie chart
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+if Path(results_path).exists():
+    print("✓ Found processed L2-ARCTIC results!")
+    print(f"   Loading from: {results_path}")
 
-# Pie chart
-colors = sns.color_palette("Set2", 3)
-ax1.pie(error_counts, labels=error_types, autopct='%1.1f%%', startangle=90, colors=colors)
-ax1.set_title('Error Type Distribution', fontsize=14, fontweight='bold')
+    # Load real results
+    results_df = pd.read_csv(results_path)
 
-# Bar chart
-ax2.bar(error_types, error_counts, color=colors, edgecolor='black', linewidth=1.5)
-ax2.set_ylabel('Count', fontsize=12)
-ax2.set_title('Error Counts by Type', fontsize=14, fontweight='bold')
-ax2.grid(axis='y', alpha=0.3)
+    print(f"\n📊 Dataset Summary:")
+    print(f"   Total utterances analyzed: {len(results_df)}")
+    print(f"   Speakers: {results_df['speaker_id'].nunique()}")
+    print(f"   Languages: {results_df['native_language'].nunique()}")
 
-for i, count in enumerate(error_counts):
-    ax2.text(i, count + 0.2, str(count), ha='center', fontsize=11, fontweight='bold')
+    # Show sample
+    print(f"\n📋 Sample results:")
+    display(results_df[['speaker_id', 'native_language', 'wer', 'critical_errors', 'accent_features']].head(10))
+
+else:
+    print("⚠️  No processed results found!")
+    print(f"\nTo process real L2-ARCTIC data, run:")
+    print(f"   python process_l2arctic.py")
+    print(f"\nThis will:")
+    print(f"  1. Load audio files from L2-ARCTIC dataset")
+    print(f"  2. Transcribe with Whisper ASR")
+    print(f"  3. Analyze intelligibility (critical errors vs. accent features)")
+    print(f"  4. Save results to: {results_path}")
+    print(f"\n⏱️  Estimated time: ~20 minutes for 250 files (50 per speaker × 5 speakers)")
+    raise FileNotFoundError(f"Please run 'python process_l2arctic.py' first to generate results")
+```
+
+## 7.2 Aggregate Statistics
+
+```{python}
+print("\n" + "=" * 80)
+print("AGGREGATE STATISTICS (REAL DATA)")
+print("=" * 80)
+
+print(f"\n📊 Overall Performance:")
+print(f"   Average WER: {results_df['wer'].mean():.2%}")
+print(f"   Average Critical Errors: {results_df['critical_errors'].mean():.2f} per utterance")
+print(f"   Average Accent Features: {results_df['accent_features'].mean():.2f} per utterance")
+print(f"   Total Substitutions: {results_df['substitutions'].sum()}")
+print(f"   Total Deletions: {results_df['deletions'].sum()}")
+print(f"   Total Insertions: {results_df['insertions'].sum()}")
+```
+
+## 7.3 By Language Analysis
+
+```{python}
+print("\n📊 Performance by Native Language:")
+print("=" * 80)
+
+lang_stats = results_df.groupby('native_language').agg({
+    'wer': ['mean', 'std', 'min', 'max'],
+    'critical_errors': ['mean', 'sum'],
+    'accent_features': ['mean', 'sum'],
+    'speaker_id': 'count'
+}).round(3)
+
+lang_stats.columns = ['WER_mean', 'WER_std', 'WER_min', 'WER_max',
+                       'Critical_mean', 'Critical_total',
+                       'Accent_mean', 'Accent_total', 'N_utterances']
+
+display(lang_stats)
+
+# Visualize by language
+fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+
+# WER by language
+lang_wer = results_df.groupby('native_language')['wer'].mean().sort_values(ascending=False)
+axes[0].barh(range(len(lang_wer)), lang_wer.values, color='skyblue', edgecolor='black')
+axes[0].set_yticks(range(len(lang_wer)))
+axes[0].set_yticklabels(lang_wer.index)
+axes[0].set_xlabel('Average WER')
+axes[0].set_title('Word Error Rate by Language')
+axes[0].grid(axis='x', alpha=0.3)
+
+# Critical errors by language
+lang_critical = results_df.groupby('native_language')['critical_errors'].mean().sort_values(ascending=False)
+axes[1].barh(range(len(lang_critical)), lang_critical.values, color='#ff6b6b', edgecolor='black')
+axes[1].set_yticks(range(len(lang_critical)))
+axes[1].set_yticklabels(lang_critical.index)
+axes[1].set_xlabel('Average Critical Errors')
+axes[1].set_title('Critical Errors by Language')
+axes[1].grid(axis='x', alpha=0.3)
+
+# Accent features by language
+lang_accent = results_df.groupby('native_language')['accent_features'].mean().sort_values(ascending=False)
+axes[2].barh(range(len(lang_accent)), lang_accent.values, color='#51cf66', edgecolor='black')
+axes[2].set_yticks(range(len(lang_accent)))
+axes[2].set_yticklabels(lang_accent.index)
+axes[2].set_xlabel('Average Accent Features')
+axes[2].set_title('Accent Features by Language')
+axes[2].grid(axis='x', alpha=0.3)
 
 plt.tight_layout()
 plt.show()
 ```
 
-## 4.3 Word Error Rate by Speaker
+## 7.4 Critical vs. Accent Errors
 
 ```{python}
-#| label: fig-wer-by-speaker
-#| fig-cap: "Word Error Rate for Each Speaker"
+print("\n📊 Critical Errors vs. Accent Features:")
+print("=" * 80)
 
-import matplotlib.pyplot as plt
-import seaborn as sns
+# Scatter plot: Critical errors vs. WER
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
-# Sort by WER
-results_sorted = results_df.sort_values('wer', ascending=True)
+# Scatter by language
+languages = results_df['native_language'].unique()
+colors = {'Arabic': '#e74c3c', 'Mandarin': '#3498db', 'Hindi': '#2ecc71',
+          'Korean': '#f39c12', 'Spanish': '#9b59b6', 'Vietnamese': '#1abc9c'}
 
-fig, ax = plt.subplots(figsize=(12, 6))
+for lang in languages:
+    lang_data = results_df[results_df['native_language'] == lang]
+    color = colors.get(lang, '#95a5a6')
+    ax1.scatter(lang_data['wer'] * 100, lang_data['critical_errors'],
+                label=lang, alpha=0.6, s=50, color=color, edgecolor='black')
 
-# Create bar plot with color coding by language
-colors = sns.color_palette("husl", len(results_sorted['native_language'].unique()))
-language_colors = dict(zip(results_sorted['native_language'].unique(), colors))
-bar_colors = [language_colors[lang] for lang in results_sorted['native_language']]
-
-bars = ax.barh(results_sorted['speaker_id'], results_sorted['wer'], color=bar_colors, edgecolor='black')
-
-ax.set_xlabel('Word Error Rate (WER)', fontsize=12)
-ax.set_ylabel('Speaker ID', fontsize=12)
-ax.set_title('Word Error Rate by Speaker', fontsize=14, fontweight='bold')
-ax.grid(axis='x', alpha=0.3)
-
-# Add value labels
-for i, (idx, row) in enumerate(results_sorted.iterrows()):
-    ax.text(row['wer'] + 0.01, i, f"{row['wer']:.2%}", va='center', fontsize=9)
-
-plt.tight_layout()
-plt.show()
-```
-
-## 4.4 Errors by Native Language
-
-```{python}
-#| label: fig-errors-by-language
-#| fig-cap: "Error Analysis by Native Language Background"
-
-# Load error details
-errors_df = pd.read_csv('data/results/error_details.csv')
-errors_by_lang = pd.read_csv('data/results/errors_by_language.csv')
-
-# Pivot for stacked bar chart
-pivot_data = errors_by_lang.pivot(index='native_language', columns='error_type', values='count').fillna(0)
-
-fig, ax = plt.subplots(figsize=(12, 6))
-
-# Stacked bar chart
-pivot_data.plot(kind='bar', stacked=True, ax=ax, color=sns.color_palette("Set2", 3),
-                edgecolor='black', linewidth=1)
-
-ax.set_xlabel('Native Language', fontsize=12)
-ax.set_ylabel('Number of Errors', fontsize=12)
-ax.set_title('Error Count by Native Language and Error Type', fontsize=14, fontweight='bold')
-ax.legend(title='Error Type', title_fontsize=11, fontsize=10)
-ax.grid(axis='y', alpha=0.3)
-plt.xticks(rotation=45, ha='right')
-
-plt.tight_layout()
-plt.show()
-```
-
-## 4.5 Common Substitution Patterns
-
-```{python}
-#| label: tbl-substitutions
-#| tbl-cap: "Most Common Word Substitution Patterns"
-
-# Load substitution patterns
-sub_patterns = pd.read_csv('data/results/substitution_patterns.csv')
-
-# Display top 10
-top_substitutions = sub_patterns.head(10)
-print("\nTop 10 Most Common Substitution Errors:")
-print("=" * 60)
-for idx, row in top_substitutions.iterrows():
-    print(f"{row['reference']:15s} → {row['hypothesis']:15s} (Count: {row['count']})")
-print("=" * 60)
-
-top_substitutions
-```
-
-## 4.6 Detailed Speaker Performance
-
-```{python}
-#| label: tbl-speaker-performance
-#| tbl-cap: "Detailed Performance Metrics by Speaker"
-
-# Select relevant columns
-performance_table = results_df[['speaker_id', 'native_language', 'wer', 'total_errors',
-                                 'substitutions', 'deletions', 'insertions']].copy()
-
-# Format WER as percentage
-performance_table['wer'] = performance_table['wer'].apply(lambda x: f"{x:.1%}")
-
-# Rename columns
-performance_table.columns = ['Speaker', 'Native Language', 'WER', 'Total Errors',
-                              'Substitutions', 'Deletions', 'Insertions']
-
-performance_table
-```
-
-## 4.7 Error Rate Distribution
-
-```{python}
-#| label: fig-error-rate-dist
-#| fig-cap: "Distribution of Error Rates Across Speakers"
-
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-
-# Histogram
-ax1.hist(results_df['wer'], bins=8, color='skyblue', edgecolor='black', alpha=0.7)
-ax1.set_xlabel('Word Error Rate', fontsize=12)
-ax1.set_ylabel('Number of Speakers', fontsize=12)
-ax1.set_title('Distribution of WER', fontsize=14, fontweight='bold')
-ax1.axvline(results_df['wer'].mean(), color='red', linestyle='--', linewidth=2, label=f'Mean: {results_df["wer"].mean():.2%}')
+ax1.set_xlabel('Word Error Rate (%)')
+ax1.set_ylabel('Critical Errors')
+ax1.set_title('WER vs. Critical Errors by Language')
 ax1.legend()
 ax1.grid(alpha=0.3)
 
-# Box plot by language
-language_order = results_df.groupby('native_language')['wer'].mean().sort_values().index
-sns.boxplot(data=results_df, y='native_language', x='wer', order=language_order,
-            palette='Set2', ax=ax2)
-ax2.set_xlabel('Word Error Rate', fontsize=12)
-ax2.set_ylabel('Native Language', fontsize=12)
-ax2.set_title('WER Distribution by Language', fontsize=14, fontweight='bold')
-ax2.grid(axis='x', alpha=0.3)
+# Stacked bar: Critical vs. Accent by speaker
+speaker_stats = results_df.groupby('speaker_id').agg({
+    'critical_errors': 'mean',
+    'accent_features': 'mean',
+    'native_language': 'first'
+}).sort_values('critical_errors', ascending=False)
+
+x = range(len(speaker_stats))
+ax2.bar(x, speaker_stats['critical_errors'], label='Critical Errors',
+        color='#ff6b6b', edgecolor='black')
+ax2.bar(x, speaker_stats['accent_features'], bottom=speaker_stats['critical_errors'],
+        label='Accent Features', color='#51cf66', edgecolor='black')
+
+ax2.set_xticks(x)
+ax2.set_xticklabels(speaker_stats.index, rotation=45)
+ax2.set_ylabel('Average Errors per Utterance')
+ax2.set_title('Error Breakdown by Speaker')
+ax2.legend()
+ax2.grid(axis='y', alpha=0.3)
 
 plt.tight_layout()
 plt.show()
+
+print("\nKey Insight:")
+print("  🔴 Red (Critical Errors): Need targeted feedback")
+print("  🟢 Green (Accent Features): Natural variation - no feedback needed")
+```
+
+## 7.5 Error Details
+
+```{python}
+if Path(error_details_path).exists():
+    print("\n📊 High-Impact Error Patterns:")
+    print("=" * 80)
+
+    error_details_df = pd.read_csv(error_details_path)
+
+    # Most common critical substitutions
+    high_impact = error_details_df[error_details_df['error_type'] == 'HIGH_IMPACT']
+
+    if len(high_impact) > 0:
+        print(f"\nMost common critical substitutions (minimal pairs):")
+        substitution_counts = high_impact.groupby(['reference_word', 'hypothesis_word', 'native_language']).size()
+        top_substitutions = substitution_counts.sort_values(ascending=False).head(15)
+
+        for (ref, hyp, lang), count in top_substitutions.items():
+            print(f"  '{ref}' → '{hyp}' ({lang}): {count} times")
+
+        # By language
+        print(f"\n\nCritical errors by language:")
+        lang_critical = high_impact.groupby('native_language').size().sort_values(ascending=False)
+        for lang, count in lang_critical.items():
+            print(f"  {lang}: {count} critical substitutions")
+else:
+    print(f"\n⚠️  Error details not found at: {error_details_path}")
 ```
 
 ---
 
-# 5. Analysis & Discussion
+# 8. Intelligibility-Focused Error Analysis
 
-## 5.1 Key Findings
+## 8.1 Accent vs. Intelligibility: The Key Distinction
 
-### 5.1.1 Overall Performance
+**Core Principle**: Everyone has an accent - that's natural and not an error!
 
-- The system achieved an average **WER of 25.9%**, indicating that approximately 1 in 4 words contains some form of pronunciation error
-- **Substitutions** are the dominant error type, accounting for the majority of errors
-- Error rates vary significantly across different language backgrounds
-
-### 5.1.2 Language-Specific Patterns
+We distinguish between:
+- **Accent features**: Natural variations that don't impede understanding
+- **Intelligibility errors**: Substitutions/deletions that cause confusion or create different words
 
 ```{python}
-# Calculate average WER by language
-lang_performance = results_df.groupby('native_language').agg({
-    'wer': 'mean',
-    'total_errors': 'sum',
-    'substitutions': 'sum'
-}).round(3)
+print("Accent vs. Intelligibility Errors:")
+print("=" * 80)
+print("""
+✓ ACCENT FEATURE (Not an error):
+  Example: Spanish speaker says "finish" with different vowel quality
+  Result: Still understood as "finish" - no communication breakdown
 
-lang_performance = lang_performance.sort_values('wer', ascending=False)
-print("\nAverage WER by Native Language:")
-print(lang_performance)
+✗ INTELLIGIBILITY ERROR (Actual problem):
+  Example: "ship" → "chip" (minimal pair - different words!)
+  Result: Listener might misunderstand (shipping vs. potato chip)
+
+✗ CRITICAL ERROR:
+  Example: "right" → "light" (opposite directions!)
+  Result: Could cause serious misunderstanding (turn right vs. turn left)
+
+Our Approach:
+  1. Focus on MINIMAL PAIRS that cause word confusion
+  2. Identify PHONEME-level patterns using pronunciation dictionaries
+  3. Classify errors by INTELLIGIBILITY IMPACT
+  4. Provide feedback only on communication barriers, not accent
+""")
 ```
 
-**Observations:**
+## 8.2 Phoneme Analysis with CMU Pronunciation Dictionary
 
-1. **Phonetic Interference**: Errors often reflect phonetic characteristics of the speaker's native language
-   - Example: /th/ → /z/ substitution common in languages without interdental fricatives
-   - Example: /r/ → /l/ confusion in East Asian language speakers
-
-2. **Systematic Patterns**: Similar errors occur consistently across speakers of the same language background
-
-3. **Predictable Error Types**: Most errors are substitutions rather than insertions or deletions, suggesting speakers attempt to pronounce all words but may use incorrect phonemes
-
-## 5.2 Example Error Analysis
+We use the **CMU Pronouncing Dictionary** to map words to phonemes:
 
 ```{python}
-# Show detailed error for one speaker
-example_speaker = results_df.iloc[0]
+print("\nCMU Pronunciation Dictionary for Phoneme Analysis:")
+print("=" * 80)
+print("""
+The CMU dictionary provides standard American English phonemes (ARPAbet):
 
-print(f"\nDetailed Analysis: {example_speaker['speaker_id']}")
-print(f"Native Language: {example_speaker['native_language']}")
-print("=" * 60)
-print(f"Reference:  {demo_data[0]['reference']}")
-print(f"Hypothesis: {demo_data[0]['hypothesis']}")
-print("=" * 60)
-print(f"WER: {example_speaker['wer']:.2%}")
-print(f"Total Errors: {example_speaker['total_errors']}")
-print(f"  - Substitutions: {example_speaker['substitutions']}")
-print(f"  - Deletions: {example_speaker['deletions']}")
-print(f"  - Insertions: {example_speaker['insertions']}")
+Example mappings:
+  SHIP    → SH IH1 P         /ʃɪp/
+  CHIP    → CH IH1 P         /tʃɪp/
+  RIGHT   → R AY1 T          /raɪt/
+  LIGHT   → L AY1 T          /laɪt/
+  THINK   → TH IH1 NG K      /θɪŋk/
+  SINK    → S IH1 NG K       /sɪŋk/
+
+Critical phonemes for L2 speakers:
+  /θ/ (TH in "think")  - Often → /s/, /t/, /f/
+  /ð/ (TH in "this")   - Often → /z/, /d/
+  /r/ (R in "right")   - Varies by L1, confused with /l/
+  /l/ (L in "light")   - Confused with /r/ by some L1s
+  /v/ (V in "very")    - Often → /b/, /f/, /w/
+  /ʃ/ (SH in "ship")   - Often → /tʃ/ (CH)
+
+Why phonemes matter:
+  - Word-level alignment (our current method) shows "ship" → "chip" is wrong
+  - Phoneme-level shows specifically: /ʃ/ → /tʃ/ substitution
+  - This helps identify the EXACT sound causing confusion
+""")
 ```
 
-## 5.3 NLP Techniques Demonstrated
+## 8.3 Intelligibility Impact Classification
 
-This project successfully demonstrates several core NLP concepts:
+We classify errors by how much they affect communication:
 
-1. **Text Preprocessing**: Robust normalization and tokenization pipeline
-2. **Sequence Alignment**: Edit distance algorithm for comparing text sequences
-3. **Error Classification**: Systematic categorization of linguistic errors
-4. **Evaluation Metrics**: Quantitative assessment using WER
-5. **Pattern Recognition**: Statistical analysis of error patterns
-6. **Data Visualization**: Effective communication of results
+```{python}
+# Define confusability levels based on linguistic research
+confusability_analysis = {
+    '🔴 HIGH IMPACT - Critical': {
+        'description': 'Creates a minimal pair (different word with real meaning)',
+        'examples': [
+            ('right', 'light', 'Opposite directions - critical for navigation!'),
+            ('ship', 'chip', 'Completely different objects'),
+            ('three', 'free', 'Number vs. adjective - context may not help'),
+            ('van', 'ban', 'Vehicle vs. prohibition'),
+            ('berry', 'very', 'Noun vs. adverb - changes sentence meaning'),
+        ],
+        'feedback': 'Priority for learner feedback - these cause real confusion'
+    },
+    '🟡 MEDIUM IMPACT - Noticeable': {
+        'description': 'Reduces clarity but context usually resolves ambiguity',
+        'examples': [
+            ('this', 'zis', 'th→z: Non-standard but understood'),
+            ('author', 'auzor', 'th→z: Strange but recognizable'),
+            ('thing', 'sing', 'Missing initial consonant, guessable'),
+            ('fast', 'fas', 'Incomplete word but context helps'),
+        ],
+        'feedback': 'Worth noting - improves clarity but not critical'
+    },
+    '🟢 LOW IMPACT - Accent Feature': {
+        'description': 'Natural variation - does NOT impede intelligibility',
+        'examples': [
+            ('weather', 'weazer', 'Vowel quality difference (accent)'),
+            ('finish', 'feenish', 'Vowel lengthening (common variation)'),
+            ('probably', 'probly', 'Reduction (natives do this too!)'),
+            ('water', 'wah-ter', 'Different r-coloring (accent feature)'),
+        ],
+        'feedback': 'No feedback needed - perfectly fine communication'
+    }
+}
+
+print("Intelligibility Impact Classification:")
+print("=" * 80)
+
+for level, info in confusability_analysis.items():
+    print(f"\n{level}")
+    print(f"  {info['description']}")
+    print(f"\n  Examples:")
+    for intended, produced, note in info['examples']:
+        print(f"    '{intended}' → '{produced}'")
+        print(f"      → {note}")
+    print(f"\n  {info['feedback']}")
+```
+
+## 8.4 Minimal Pairs Database
+
+Minimal pairs are word pairs differing by ONE phoneme - critical for intelligibility:
+
+```{python}
+print("\nMinimal Pairs - The Foundation of Intelligibility:")
+print("=" * 80)
+
+minimal_pairs = {
+    'r_l_confusion': [
+        ('right', 'light'), ('read', 'lead'), ('rent', 'lent'),
+        ('correct', 'collect'), ('pirate', 'pilot')
+    ],
+    'th_s_confusion': [
+        ('think', 'sink'), ('thank', 'sank'), ('thick', 'sick'),
+        ('path', 'pass'), ('faith', 'face')
+    ],
+    'th_z_confusion': [
+        ('bathe', 'base'), ('breathe', 'breeze')
+    ],
+    'sh_ch_confusion': [
+        ('ship', 'chip'), ('shop', 'chop'), ('wash', 'watch'),
+        ('ashes', 'hatches')
+    ],
+    'v_b_confusion': [
+        ('van', 'ban'), ('vote', 'boat'), ('vest', 'best'),
+        ('curve', 'curb')
+    ],
+    'v_w_confusion': [
+        ('vine', 'wine'), ('veal', 'wheel'), ('verse', 'worse')
+    ],
+    'f_p_confusion': [
+        ('fan', 'pan'), ('face', 'pace'), ('feel', 'peel')
+    ]
+}
+
+print("Critical minimal pairs by phoneme substitution:\n")
+for pattern, pairs in minimal_pairs.items():
+    phonemes = pattern.replace('_confusion', '').replace('_', '/')
+    print(f"{phonemes.upper()}:")
+    for word1, word2 in pairs[:3]:  # Show first 3 examples
+        print(f"  '{word1}' ↔ '{word2}'")
+    print()
+
+print("Strategy:")
+print("  → When we detect these substitutions in transcriptions,")
+print("     flag them as HIGH IMPACT intelligibility errors")
+print("  → Other substitutions may be accent features (LOW IMPACT)")
+```
+
+## 8.5 Language-Specific Patterns (Intelligibility Framework)
+
+Based on L2 phonology research, organized by intelligibility impact:
+
+```{python}
+# Reorganize patterns by intelligibility impact
+intelligibility_patterns = {
+    'Arabic': {
+        'high_impact': [
+            '/θ/ → /s/ or /z/: "think" → "sink" (minimal pair!)',
+            '/p/ → /b/: "cap" → "cab" (different words!)',
+            '/v/ → /b/: "van" → "ban" (different words!)',
+        ],
+        'medium_impact': [
+            '/ð/ → /z/: "this" → "zis" (understandable)',
+            'Short vs long vowels: contextually clear',
+        ],
+        'low_impact': [
+            'Pharyngealized consonants (accent feature)',
+            'Vowel quality shifts (natural variation)',
+        ]
+    },
+    'Mandarin': {
+        'high_impact': [
+            '/r/ ↔ /l/: "right" vs "light" (opposite directions!)',
+            'Final consonant deletion: "fast" → "fas" (incomplete)',
+            '/n/ → /l/: "night" → "light" (different words!)',
+        ],
+        'medium_impact': [
+            '/θ/ → /s/: "think" → "sink"',
+            'Consonant cluster simplification',
+        ],
+        'low_impact': [
+            'Tone influence on pitch (accent feature)',
+            'Vowel quality (natural variation)',
+        ]
+    },
+    'Spanish': {
+        'high_impact': [
+            '/ʃ/ → /tʃ/: "ship" → "chip" (different objects!)',
+            '/dʒ/ → /j/: "jet" → "yet" (different words!)',
+            's-clusters: "speak" → "espeak" (non-word)',
+        ],
+        'medium_impact': [
+            '/b/ ~ /v/ merger: usually clear from context',
+            '/j/ vs /dʒ/: "yet" vs "jet"',
+        ],
+        'low_impact': [
+            'Trilled /r/ (accent feature)',
+            'Pure vowels vs. diphthongs (variation)',
+        ]
+    },
+    'Korean': {
+        'high_impact': [
+            '/f/ → /p/: "fan" → "pan" (different objects!)',
+            '/r/ ~ /l/: "read" → "lead" (different words in some contexts)',
+            '/z/ → /s/: "zoo" → "sue" (different words!)',
+        ],
+        'medium_impact': [
+            '/θ/ → /s/: "think" → "sink"',
+            'Final consonant devoicing',
+        ],
+        'low_impact': [
+            'Consonant tenseness (accent feature)',
+            'Vowel length (natural variation)',
+        ]
+    },
+    'Hindi': {
+        'high_impact': [
+            '/v/ ↔ /w/: "vine" → "wine" (different objects!)',
+            '/θ/ → /t/: Limited minimal pairs',
+        ],
+        'medium_impact': [
+            'Retroflex vs. alveolar: usually clear',
+            'Aspiration patterns',
+        ],
+        'low_impact': [
+            'Retroflex sounds (accent feature)',
+            'Vowel nasalization (variation)',
+        ]
+    },
+    'Vietnamese': {
+        'high_impact': [
+            'Consonant cluster reduction: creates non-words',
+            '/r/ → /z/: "red" → "zed" (different words!)',
+            'Final stop deletion: "cat" → "ca" (incomplete)',
+        ],
+        'medium_impact': [
+            '/θ/ → /t/: "thing" → "ting"',
+            'Final consonant devoicing',
+        ],
+        'low_impact': [
+            'Tone influence (accent feature)',
+            'Vowel quality (natural variation)',
+        ]
+    }
+}
+
+print("Language-Specific Intelligibility Patterns:")
+print("=" * 80)
+
+for lang, patterns in intelligibility_patterns.items():
+    print(f"\n{lang.upper()}:")
+    print(f"  🔴 HIGH IMPACT (Priority feedback):")
+    for pattern in patterns['high_impact']:
+        print(f"     {pattern}")
+    print(f"  🟡 MEDIUM IMPACT (Helpful to address):")
+    for pattern in patterns['medium_impact']:
+        print(f"     {pattern}")
+    print(f"  🟢 LOW IMPACT (Accent - no feedback needed):")
+    for pattern in patterns['low_impact']:
+        print(f"     {pattern}")
+```
+
+## 8.6 Implementation Strategy
+
+```{python}
+print("\nIntelligibility-Based Feedback Implementation:")
+print("=" * 80)
+print("""
+Current Analysis:
+  1. ASR transcribes audio → hypothesis text
+  2. Align with reference using Levenshtein
+  3. Identify substitutions (word-level)
+  4. Calculate WER
+
+Enhanced Intelligibility Analysis (Future Work):
+  1. ASR transcribes audio → hypothesis text
+  2. Align with reference using Levenshtein
+  3. Identify substitutions (word-level)
+  4. Look up phonemes in CMU dictionary
+  5. Identify exact phoneme substitution
+  6. Check minimal pair database
+  7. Classify impact: HIGH / MEDIUM / LOW
+  8. Provide targeted feedback
+
+Example Output:
+  Instead of: "WER = 15% (3 errors)"
+  Provide:    "2 critical errors that may cause confusion:
+                - 'ship' → 'chip' (/ʃ/ → /tʃ/)
+                - 'right' → 'light' (/r/ → /l/)
+               1 accent feature (no feedback needed):
+                - vowel quality variation"
+
+Required Tools:
+  - CMU Pronouncing Dictionary (cmudict)
+  - Minimal pair database
+  - Phoneme alignment algorithm
+  - Confusability classifier
+
+Installation:
+  pip install cmudict nltk pronouncing
+""")
+```
 
 ---
 
-# 6. Implementation Details
+# 9. Next Steps: Real Data Processing
 
-## 6.1 Code Architecture
+## 9.1 Processing Script Template
 
-The system is organized into modular components:
+To process L2-ARCTIC audio files:
 
 ```{python}
-import os
-print("Project Structure:")
-print("ped/")
-print("  ├── text.py           # Text preprocessing and alignment")
-print("  ├── metrics.py        # Evaluation metrics (WER, CER)")
-print("  ├── asr.py            # Whisper ASR integration")
-print("  ├── errors.py         # Error detection and classification")
-print("  └── pipeline.py       # End-to-end pipeline orchestration")
+print("Processing Script (process_l2arctic.py):")
+print("=" * 80)
+print("""
+import json
+import pandas as pd
+from analysis_utils import run_audio_pipeline, get_speaker_language_mapping
+from tqdm import tqdm
+
+# Load manifest
+with open('data/processed/l2arctic_manifest.json') as f:
+    manifest = json.load(f)
+
+# Select speakers
+selected_speakers = ['ABA', 'BWC', 'ASI', 'HJK', 'EBVS']
+sample_size = 50
+
+# Process audio files
+results = []
+speaker_lang = get_speaker_language_mapping()
+
+for item in tqdm(manifest):
+    if item['speaker_id'] in selected_speakers:
+        # Limit to sample_size per speaker
+        speaker_count = sum(1 for r in results if r['speaker_id'] == item['speaker_id'])
+        if speaker_count >= sample_size:
+            continue
+
+        # Process audio
+        try:
+            result = run_audio_pipeline(
+                audio_path=item['audio_path'],
+                ref_text=item['reference_text'],
+                model_size='base'
+            )
+
+            # Store results
+            results.append({
+                'speaker_id': item['speaker_id'],
+                'native_language': item['native_language'],
+                'file_id': item['file_id'],
+                'reference': item['reference_text'],
+                'hypothesis': result.hyp,
+                'wer': result.wer,
+                'total_errors': result.error_analysis.total_errors,
+                'substitutions': result.error_analysis.substitution_count,
+                'deletions': result.error_analysis.deletion_count,
+                'insertions': result.error_analysis.insertion_count
+            })
+
+        except Exception as e:
+            print(f"Error processing {item['file_id']}: {e}")
+
+# Save results
+results_df = pd.DataFrame(results)
+results_df.to_csv('data/results/speaker_results.csv', index=False)
+
+print(f"Processed {len(results)} files")
+print(f"Average WER: {results_df['wer'].mean():.2%}")
+""")
 ```
 
-## 6.2 Example: Running the Pipeline
+## 9.2 Running the Analysis
 
 ```{python}
-from ped.pipeline import run_text_pipeline
+print("To process real L2-ARCTIC data:")
+print("=" * 80)
+print("""
+1. Ensure Whisper is installed:
+   pip install faster-whisper
 
-# Example pronunciation error detection
-reference = "I need to finish my homework"
-hypothesis = "I need to feenish my homework"
+2. Run processing script:
+   python process_l2arctic.py
 
-result = run_text_pipeline(reference, hypothesis)
+3. Results will be saved to:
+   data/results/speaker_results.csv
 
-print(f"Reference:  {result.ref}")
-print(f"Hypothesis: {result.hyp}")
-print(f"WER:        {result.wer:.2%}")
-print(f"\nErrors detected: {result.error_analysis.total_errors}")
-print(f"  Substitutions: {result.error_analysis.substitution_count}")
-print(f"  Deletions:     {result.error_analysis.deletion_count}")
-print(f"  Insertions:    {result.error_analysis.insertion_count}")
-```
-
-## 6.3 ASR Integration (Whisper)
-
-```{python}
-# Example ASR transcription code (demonstration only)
-print("Example: ASR Transcription with Whisper")
-print("=" * 60)
-print("from ped.asr import transcribe")
-print("")
-print("# Transcribe audio file")
-print("audio_path = 'data/audio/speaker_01.wav'")
-print("reference = 'The weather is very nice today'")
-print("")
-print("hypothesis = transcribe(audio_path, model_size='base')")
-print("print(f'Transcribed: {hypothesis}')")
-print("=" * 60)
-```
-
-**Note**: This demo uses simulated transcriptions. For real audio analysis, the Whisper ASR model would transcribe actual audio files.
-
----
-
-# 7. Conclusions
-
-## 7.1 Summary
-
-This project successfully developed an **automatic pronunciation error detection system** that:
-
-✅ Integrates ASR technology (Whisper) for speech-to-text conversion
-✅ Implements sequence alignment using Levenshtein distance
-✅ Classifies pronunciation errors into insertions, deletions, and substitutions
-✅ Computes standard evaluation metrics (WER)
-✅ Identifies language-specific pronunciation patterns
-✅ Visualizes results effectively for analysis
-
-## 7.2 NLP Techniques Mastered
-
-1. **Tokenization & Text Normalization**
-2. **Sequence Alignment Algorithms**
-3. **Edit Distance Computation**
-4. **Error Classification**
-5. **Evaluation Metrics (WER, PER)**
-6. **Pattern Recognition & Statistical Analysis**
-7. **ASR Integration**
-
-## 7.3 Practical Applications
-
-This technology can be applied to:
-
-- **Language Learning Apps**: Provide feedback to learners
-- **Accent Coaching**: Identify specific pronunciation challenges
-- **Speech Therapy**: Track progress in pronunciation improvement
-- **Automated Assessment**: Evaluate spoken language proficiency
-
-## 7.4 Future Improvements
-
-1. **Phoneme-Level Analysis**: Implement grapheme-to-phoneme (G2P) conversion for more granular error detection
-2. **Larger Dataset**: Test on real L2-ARCTIC or similar speech corpus
-3. **Deep Learning**: Explore neural models for direct pronunciation assessment
-4. **Real-Time Feedback**: Build interactive application for live pronunciation coaching
-5. **Multi-Language Support**: Extend to other target languages beyond English
-
----
-
-# 8. References
-
-## Technical Resources
-
-1. **Whisper ASR**: Radford, A., et al. (2022). "Robust Speech Recognition via Large-Scale Weak Supervision"
-2. **Edit Distance**: Levenshtein, V. I. (1966). "Binary codes capable of correcting deletions, insertions, and reversals"
-3. **Word Error Rate**: Hunt, M. J. (1990). "Figures of merit for assessing connected-word recognizers"
-
-## Datasets
-
-- **L2-ARCTIC**: Speech corpus from non-native English speakers
-- **OpenSLR**: Open Speech and Language Resources
-
-## Tools & Libraries
-
-- **faster-whisper**: Efficient Whisper implementation
-- **Python-Levenshtein**: Fast edit distance computation
-- **SpaCy**: Industrial-strength NLP
-- **Pandas/NumPy**: Data analysis and manipulation
-- **Matplotlib/Seaborn**: Data visualization
-- **Quarto**: Scientific publishing system
-
----
-
-# Appendix A: Full Results Data
-
-```{python}
-#| label: tbl-full-results
-#| tbl-cap: "Complete Speaker-Level Results"
-
-# Display all speaker results
-full_results = results_df.copy()
-full_results['wer'] = full_results['wer'].apply(lambda x: f"{x:.1%}")
-full_results
-```
-
-# Appendix B: System Requirements
-
-```{python}
-print("System Requirements:")
-print("=" * 60)
-print("Python:         >= 3.11")
-print("UV:             Package manager")
-print("\nKey Dependencies:")
-print("  - faster-whisper  >= 0.10")
-print("  - torch           >= 2.0")
-print("  - spacy           >= 3.7")
-print("  - pandas          >= 2.1")
-print("  - matplotlib      >= 3.8")
-print("  - seaborn         >= 0.13")
-print("  - quarto          >= 0.1")
-print("=" * 60)
-```
-
-# Appendix C: Repository Structure
-
-```{python}
-print("Repository Structure:")
-print("=" * 60)
-print("pronunciation-error-detection/")
-print("├── ped/                      # Core Python package")
-print("│   ├── text.py               # Text preprocessing")
-print("│   ├── metrics.py            # Evaluation metrics")
-print("│   ├── asr.py                # ASR integration")
-print("│   ├── errors.py             # Error detection")
-print("│   └── pipeline.py           # Pipeline orchestration")
-print("├── scripts/")
-print("│   ├── generate_demo_data.py # Demo data generation")
-print("│   └── analyze_demo_data.py  # Analysis script")
-print("├── data/")
-print("│   ├── processed/            # Demo data")
-print("│   └── results/              # Analysis results")
-print("├── tests/                    # Unit tests")
-print("├── pyproject.toml            # Project configuration")
-print("├── nlp_presentation.qmd      # This presentation")
-print("└── README.md                 # Project documentation")
-print("=" * 60)
+4. Re-render this presentation to show real results:
+   quarto render nlp_presentation.qmd
+""")
 ```
 
 ---
 
-<div style="text-align: center; margin-top: 50px; padding: 20px; background-color: #f0f0f0; border-radius: 10px;">
+# 10. Summary
 
-## Thank You!
+## 10.1 Project Components
 
-**Project Repository**: `pronunciation-error-detection`
+✅ **Dataset**: L2-ARCTIC corpus (27,120 audio files, 24 speakers, 6 languages)
 
-**Contact**: [Your Email]
+✅ **Tools**: `analysis_utils.py` package with:
+- Text preprocessing
+- Sequence alignment (Levenshtein)
+- Error detection and classification
+- WER calculation
+- Whisper ASR integration
 
-**Course**: Natural Language Processing
+✅ **Methodology**:
+- ASR transcription
+- Text alignment
+- Error classification (S, D, I)
+- Statistical analysis
 
-**Date**: `r Sys.Date()`
+## 10.2 NLP Techniques Demonstrated
 
-</div>
+1. **Text Preprocessing**: Tokenization, normalization
+2. **Sequence Alignment**: Edit distance, dynamic programming
+3. **Error Classification**: Linguistic error categorization
+4. **Evaluation Metrics**: WER computation
+5. **Pattern Recognition**: Error pattern analysis
+6. **ASR Integration**: Speech-to-text
+
+## 10.3 References
+
+- **Whisper ASR**: Radford et al. (2022) - Robust Speech Recognition via Large-Scale Weak Supervision
+- **Edit Distance**: Levenshtein (1966) - Binary codes capable of correcting deletions, insertions, and reversals
+- **WER Metric**: Hunt (1990) - Figures of merit for assessing connected-word recognizers
+- **L2-ARCTIC**: Zhao et al. (2018) - L2-ARCTIC: A Non-native English Speech Corpus
+
+---
+
+**Project Status**: Ready for real data processing
+
+**Next Step**: Run Whisper ASR on L2-ARCTIC sample to generate real results

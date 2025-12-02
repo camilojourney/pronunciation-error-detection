@@ -1,7 +1,23 @@
 # NLP Project: Focused Roadmap
 
 ## Project Goal
-Build an NLP system to detect pronunciation errors in non-native English speakers by comparing spoken text (from ASR) to expected reference text.
+Build an NLP system to detect pronunciation errors in non-native English speakers by comparing spoken text (from ASR) to expected reference text using the **L2-ARCTIC speech corpus**.
+
+## Current Project Status ✅
+
+**Dataset**: L2-ARCTIC Release v5.0
+- ✅ **Downloaded and extracted** in `l2arctic_release_v5/`
+- ✅ **24 non-native speakers** from diverse language backgrounds
+- ✅ **~1,130 utterances per speaker** (27,120 total audio files)
+- ✅ **Manifest created** (`data/processed/l2arctic_manifest.json`) with audio paths and reference texts
+- ✅ **Languages**: Arabic, Chinese (Mandarin), Hindi, Korean, Spanish, Vietnamese, and more
+
+**What We Have**:
+- ✅ L2-ARCTIC corpus with reference transcripts
+- ✅ Data science notebook (`nlp_presentation.qmd`)
+- ✅ NLP utility package (`analysis_utils.py`) with all functions
+- ⚠️ **Need to do**: Real ASR transcription on L2-ARCTIC audio files
+- ⚠️ **Need to do**: Process audio and generate real results
 
 ---
 
@@ -83,27 +99,47 @@ These are the essential components you need to complete for your class project:
 
 ---
 
-## Recommended Work Order
+## Step-by-Step Workflow (What We're Actually Doing)
 
-### Week 1-2: Foundation
-1. Get L2-ARCTIC dataset downloaded to `data/raw/`
-2. Implement ASR transcription using Whisper
-3. Test basic pipeline with a few audio files
+### ✅ Phase 1: Dataset Preparation (DONE)
+1. ✅ Downloaded L2-ARCTIC dataset (27,120 audio files)
+2. ✅ Created manifest file mapping audio files to reference texts
+3. ✅ Organized dataset by speaker and language background
 
-### Week 3: Core NLP
-4. Enhance text preprocessing (SpaCy tokenization + lemmatization)
-5. Implement robust alignment algorithm
-6. Add error classification logic
+### ✅ Phase 2: Implementation (DONE)
+4. ✅ **Created `analysis_utils.py`** - Complete NLP package with:
+   - Text preprocessing, tokenization, alignment
+   - WER/CER calculation
+   - Whisper ASR transcription
+   - Error detection and classification
+   - End-to-end pipelines (text and audio)
 
-### Week 4: Analysis & Metrics
-7. Calculate WER, CER across dataset
-8. Generate visualizations (error frequency charts)
-9. Analyze patterns by speaker/accent
+5. **Run ASR on L2-ARCTIC samples**:
+   - Select subset of speakers (e.g., 5-10 speakers, 50 utterances each)
+   - Transcribe using Whisper (base or small model)
+   - Save transcriptions alongside reference texts
 
-### Week 5: Polish & Report
-10. Create final visualizations for presentation
-11. Write up methodology and results
-12. Prepare demo with sample audio files
+6. **Perform alignment and error detection**:
+   - Align ASR output with reference text using Levenshtein distance
+   - Classify errors (substitutions, deletions, insertions)
+   - Calculate WER per speaker and per language group
+
+### 📊 Phase 3: Analysis & Visualization (NEXT)
+7. **Statistical analysis**:
+   - Calculate aggregate WER across speakers
+   - Identify most common substitution patterns
+   - Analyze error distribution by native language
+
+8. **Generate visualizations**:
+   - Error type distribution (pie/bar charts)
+   - WER by speaker (horizontal bar chart)
+   - Error patterns by language background (stacked bar)
+   - Common substitution patterns (table)
+
+### 📝 Phase 4: Presentation (FINAL)
+9. **Update nlp_presentation.qmd** with real results
+10. **Render final HTML presentation**
+11. **Prepare live demo** showcasing pronunciation error detection
 
 ---
 
@@ -158,28 +194,53 @@ These are the essential components you need to complete for your class project:
 
 ---
 
-## Next Steps (Start Here!)
+## L2-ARCTIC Dataset Details
 
-1. **Install dependencies**:
+**Dataset Information**:
+- **Source**: OpenSLR.org/96 (University of Edinburgh)
+- **Speakers**: 24 non-native English speakers
+- **Native Languages**: Arabic, Mandarin, Hindi, Korean, Spanish, Vietnamese, and others
+- **Content**: CMU ARCTIC prompts (phonetically balanced English sentences)
+- **Format**: 16kHz WAV audio files
+- **Annotations**: Word-level transcripts, TextGrid alignments
+
+**Speakers in Our Dataset** (Examples):
+- `ABA` - Arabic
+- `ASI` - ? (need to check)
+- `BWC` - ? (need to check)
+- Each speaker has ~1,130 utterances
+
+**Directory Structure**:
+```
+l2arctic_release_v5/
+├── ABA/              # Arabic speaker
+│   ├── wav/          # Audio files (1,130 files)
+│   ├── transcript/   # Reference texts
+│   └── textgrid/     # Phonetic alignments
+├── ASI/
+├── BWC/
+└── ...
+```
+
+## Next Steps (What to Do Right Now)
+
+### Immediate Actions:
+
+1. **Install Whisper** (if not already installed):
    ```bash
-   pip install -e ".[ml,dev,experiments]"
+   pip install faster-whisper
    ```
 
-2. **Download L2-ARCTIC dataset**:
-   - Go to http://www.openslr.org/96/
-   - Download and extract to `data/raw/l2arctic/`
+2. **Process Real L2-ARCTIC Data**:
+   - Select 5-10 speakers from different language backgrounds
+   - Transcribe 20-50 utterances per speaker using Whisper
+   - Perform alignment and calculate real WER
+   - Generate actual statistics and visualizations
 
-3. **Implement Whisper ASR**:
-   - Complete the `transcribe()` function in `ped/asr.py`
-   - Test on a single audio file
-
-4. **Run the pipeline**:
-   - Use `scripts/run_text_alignment.py` as a template
-   - Create new script for audio processing
-
-5. **Start analysis**:
-   - Create a Jupyter notebook in `notebooks/`
-   - Load results and generate visualizations
+4. **Render and Test**:
+   - Run `quarto render nlp_presentation.qmd`
+   - Verify all code cells execute correctly
+   - Check that visualizations display properly
 
 ---
 
