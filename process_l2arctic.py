@@ -127,6 +127,7 @@ def process_l2arctic_sample(
                 'speaker_id': item['speaker_id'],
                 'native_language': item['native_language'],
                 'file_id': item['file_id'],
+                'audio_path': item['audio_path'],  # Add audio path for playback
                 'reference': item['reference_text'],
                 'hypothesis': result.hyp,
                 'wer': result.wer,

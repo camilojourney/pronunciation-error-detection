@@ -257,20 +257,75 @@ def arpabet_to_ipa(arpabet: str) -> str:
     Returns:
         IPA equivalent (e.g., 'ʃ', 'θ', 'ɪ')
     """
-    # Mapping from ARPABET to IPA
+    # Official ARPABET to IPA mapping
+    # Source: CMU Pronouncing Dictionary & IPA standards
     arpabet_to_ipa_map = {
-        # Consonants
-        'P': 'p', 'B': 'b', 'T': 't', 'D': 'd', 'K': 'k', 'G': 'ɡ',
-        'F': 'f', 'V': 'v', 'TH': 'θ', 'DH': 'ð', 'S': 's', 'Z': 'z',
-        'SH': 'ʃ', 'ZH': 'ʒ', 'HH': 'h', 'M': 'm', 'N': 'n', 'NG': 'ŋ',
-        'L': 'l', 'R': 'r', 'W': 'w', 'Y': 'j', 'CH': 'tʃ', 'JH': 'dʒ',
+        # ===== CONSONANTS =====
+        # Stops
+        'P': 'p',   # voiceless bilabial stop (pin)
+        'B': 'b',   # voiced bilabial stop (bin)
+        'T': 't',   # voiceless alveolar stop (tin)
+        'D': 'd',   # voiced alveolar stop (din)
+        'K': 'k',   # voiceless velar stop (kin)
+        'G': 'ɡ',   # voiced velar stop (give)
 
-        # Vowels (monophthongs)
-        'IY': 'i', 'IH': 'ɪ', 'EH': 'ɛ', 'AE': 'æ', 'AA': 'ɑ', 'AO': 'ɔ',
-        'UH': 'ʊ', 'UW': 'u', 'AH': 'ʌ', 'ER': 'ɝ', 'AX': 'ə', 'IX': 'ɨ',
+        # Fricatives
+        'F': 'f',   # voiceless labiodental fricative (fin)
+        'V': 'v',   # voiced labiodental fricative (van)
+        'TH': 'θ',  # voiceless dental fricative (thin)
+        'DH': 'ð',  # voiced dental fricative (then)
+        'S': 's',   # voiceless alveolar fricative (sin)
+        'Z': 'z',   # voiced alveolar fricative (zen)
+        'SH': 'ʃ',  # voiceless postalveolar fricative (shin)
+        'ZH': 'ʒ',  # voiced postalveolar fricative (measure)
+        'HH': 'h',  # voiceless glottal fricative (hat)
 
-        # Diphthongs
-        'EY': 'eɪ', 'AY': 'aɪ', 'OW': 'oʊ', 'AW': 'aʊ', 'OY': 'ɔɪ'
+        # Affricates
+        'CH': 'tʃ', # voiceless postalveolar affricate (chin)
+        'JH': 'dʒ', # voiced postalveolar affricate (gin)
+
+        # Nasals
+        'M': 'm',   # bilabial nasal (man)
+        'N': 'n',   # alveolar nasal (nan)
+        'NG': 'ŋ',  # velar nasal (sing)
+
+        # Liquids
+        'L': 'l',   # alveolar lateral approximant (let)
+        'R': 'ɹ',   # alveolar approximant (red) - changed from 'r' to 'ɹ'
+
+        # Semivowels/Glides
+        'W': 'w',   # labio-velar approximant (wet)
+        'Y': 'j',   # palatal approximant (yet)
+
+        # ===== VOWELS =====
+        # Monophthongs - Tense
+        'IY': 'i',  # high front tense (beet, see)
+        'UW': 'u',  # high back rounded (boot, too)
+
+        # Monophthongs - Lax
+        'IH': 'ɪ',  # high front lax (bit, sit)
+        'UH': 'ʊ',  # high back rounded lax (book, put)
+        'EH': 'ɛ',  # mid front (bet, met)
+        'AH': 'ʌ',  # mid central (but, cut)
+        'AE': 'æ',  # low front (bat, cat)
+        'AA': 'ɑ',  # low back (bot, father)
+        'AO': 'ɔ',  # mid back rounded (bought, caught)
+
+        # R-colored vowels
+        'ER': 'ɚ',  # r-colored mid central (butter, bird) - changed from 'ɝ'
+        'AXR': 'ɚ', # r-colored schwa (butter)
+
+        # Reduced vowels
+        'AX': 'ə',  # schwa (about, comma)
+        'IX': 'ɨ',  # high central (roses)
+        'AXH': 'ə̥', # voiceless schwa
+
+        # ===== DIPHTHONGS =====
+        'EY': 'eɪ', # (bait, say)
+        'AY': 'aɪ', # (bite, my)
+        'OW': 'oʊ', # (boat, show)
+        'AW': 'aʊ', # (bout, now)
+        'OY': 'ɔɪ', # (boy, toy)
     }
 
     return arpabet_to_ipa_map.get(arpabet, arpabet)
@@ -603,8 +658,13 @@ def transcribe_audio(audio_path: str, model_size: str = "base") -> str:
         # Initialize model
         model = WhisperModel(model_size, device="cpu", compute_type="int8")
 
-        # Transcribe
-        segments, info = model.transcribe(audio_path, beam_size=5)
+        # Transcribe with FORCED ENGLISH language
+        # This prevents Whisper from auto-detecting and transcribing in Arabic/Chinese/etc
+        segments, info = model.transcribe(
+            audio_path,
+            beam_size=5,
+            language="en"  # Force English transcription
+        )
 
         # Concatenate all segments
         transcription = " ".join([segment.text.strip() for segment in segments])
@@ -617,7 +677,7 @@ def transcribe_audio(audio_path: str, model_size: str = "base") -> str:
             import whisper
 
             model = whisper.load_model(model_size)
-            result = model.transcribe(audio_path)
+            result = model.transcribe(audio_path, language="en")  # Force English here too
 
             return result["text"].strip()
 
