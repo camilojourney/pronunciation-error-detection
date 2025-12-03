@@ -109,6 +109,19 @@ def process_l2arctic_sample(
             # Intelligibility analysis
             intel = analyze_intelligibility(result.error_analysis)
 
+            # Create detailed error breakdown
+            error_breakdown = []
+            for ref, hyp, explanation in intel.high_impact_errors:
+                error_breakdown.append(f"🔴 HIGH: '{ref}' → '{hyp}' ({explanation})")
+            for ref, hyp, explanation in intel.medium_impact_errors:
+                error_breakdown.append(f"🟡 MED: '{ref}' → '{hyp}' ({explanation})")
+            for ref, hyp, explanation in intel.low_impact_errors:
+                error_breakdown.append(f"🟢 LOW: '{ref}' → '{hyp}' ({explanation})")
+            for word in intel.deletions:
+                error_breakdown.append(f"❌ DELETED: '{word}'")
+            for word in intel.insertions:
+                error_breakdown.append(f"➕ INSERTED: '{word}'")
+
             # Store results
             results.append({
                 'speaker_id': item['speaker_id'],
@@ -124,7 +137,8 @@ def process_l2arctic_sample(
                 'critical_errors': intel.total_critical_errors,
                 'high_impact_errors': len(intel.high_impact_errors),
                 'medium_impact_errors': len(intel.medium_impact_errors),
-                'accent_features': len(intel.low_impact_errors)
+                'accent_features': len(intel.low_impact_errors),
+                'error_details': ' | '.join(error_breakdown) if error_breakdown else 'No errors'
             })
 
         except Exception as e:
@@ -237,6 +251,19 @@ def process_l2arctic_sample(
             for (ref, hyp), count in top_substitutions.items():
                 print(f"   '{ref}' → '{hyp}': {count} times")
 
+    # Generate interactive HTML dashboard
+    try:
+        from generate_dashboard import generate_html_dashboard
+        dashboard_path = f"{output_dir}/pronunciation_dashboard.html"
+        generate_html_dashboard(
+            results_csv=results_path,
+            output_html=dashboard_path
+        )
+        print(f"\n🌐 Interactive Dashboard Generated!")
+        print(f"   Open in browser: file://{Path(dashboard_path).absolute()}")
+    except Exception as e:
+        print(f"\n⚠️  Could not generate dashboard: {e}")
+
     print("\n" + "=" * 80)
     print("✅ PROCESSING COMPLETE")
     print("=" * 80)
@@ -246,6 +273,7 @@ def process_l2arctic_sample(
     print(f"  - speaker_statistics.csv")
     if error_details:
         print(f"  - error_details.csv")
+    print(f"  - pronunciation_dashboard.html (Interactive Web Dashboard)")
 
     if errors:
         print(f"\n⚠️  {len(errors)} files failed to process")

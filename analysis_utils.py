@@ -16,8 +16,22 @@ Course: Natural Language Processing
 
 import re
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Dict
 import difflib
+
+# Phoneme analysis imports
+try:
+    from g2p_en import G2p
+    G2P_AVAILABLE = True
+except ImportError:
+    G2P_AVAILABLE = False
+
+try:
+    import nltk
+    from nltk.corpus import cmudict
+    CMUDICT_AVAILABLE = True
+except ImportError:
+    CMUDICT_AVAILABLE = False
 
 
 # ============================================================================
@@ -52,6 +66,42 @@ class PipelineResult:
     wer: float
     error_analysis: ErrorAnalysis
     alignment_ops: List[AlignmentOperation]
+
+
+@dataclass
+class PhonemeAlignment:
+    """Represents alignment between reference and hypothesis at phoneme level."""
+    ref_word: str
+    hyp_word: str
+    ref_phonemes: List[str]  # IPA or ARPABET phonemes
+    hyp_phonemes: List[str]
+    phoneme_operations: List[Tuple[str, str, str]]  # [(op, ref_phoneme, hyp_phoneme), ...]
+    phoneme_error_rate: float
+    error_type: str  # 'substitution', 'deletion', 'insertion', 'correct'
+
+
+@dataclass
+class PhonemeError:
+    """Detailed information about a single phoneme error."""
+    position: int  # Position in word
+    ref_phoneme: str
+    hyp_phoneme: str
+    error_type: str  # 'substitution', 'deletion', 'insertion'
+    phonetic_features: Dict[str, str]  # e.g., {'voicing': 'voiced→unvoiced', 'place': 'alveolar→velar'}
+
+
+@dataclass
+class DetailedWordError:
+    """Enhanced word error with phoneme-level details."""
+    ref_word: str
+    hyp_word: str
+    ref_phonemes: List[str]
+    hyp_phonemes: List[str]
+    phoneme_errors: List[PhonemeError]
+    intelligibility_impact: str  # 'HIGH', 'MEDIUM', 'LOW'
+    explanation: str
+    minimal_pair: bool
+    phoneme_pattern: str
 
 
 # ============================================================================
@@ -110,6 +160,127 @@ def tokenize(text: str) -> List[str]:
     cleaned = clean_text(text)
     tokens = cleaned.split()
     return tokens
+
+
+# ============================================================================
+# PHONEME EXTRACTION
+# ============================================================================
+
+# Initialize G2P model (grapheme-to-phoneme)
+_g2p_model = None
+_cmudict = None
+
+def _get_g2p_model():
+    """Lazy initialization of G2P model."""
+    global _g2p_model
+    if _g2p_model is None and G2P_AVAILABLE:
+        _g2p_model = G2p()
+    return _g2p_model
+
+def _get_cmudict():
+    """Lazy initialization of CMU dictionary."""
+    global _cmudict
+    if _cmudict is None and CMUDICT_AVAILABLE:
+        try:
+            _cmudict = cmudict.dict()
+        except LookupError:
+            # Download cmudict if not available
+            nltk.download('cmudict', quiet=True)
+            _cmudict = cmudict.dict()
+    return _cmudict
+
+
+def word_to_phonemes(word: str, use_cmudict: bool = True) -> List[str]:
+    """
+    Convert a word to its phoneme sequence.
+
+    Uses CMU Pronunciation Dictionary (ARPABET) by default, falls back to G2P.
+
+    Args:
+        word: Word to convert to phonemes
+        use_cmudict: Whether to use CMU dict first (default True)
+
+    Returns:
+        List of phonemes in ARPABET format (e.g., ['SH', 'IH1', 'P'] for "ship")
+        Returns empty list if conversion fails
+
+    Example:
+        >>> word_to_phonemes("ship")
+        ['SH', 'IH1', 'P']
+        >>> word_to_phonemes("think")
+        ['TH', 'IH1', 'NG', 'K']
+    """
+    word = word.lower().strip()
+
+    # Try CMU dictionary first
+    if use_cmudict and CMUDICT_AVAILABLE:
+        cmu = _get_cmudict()
+        if cmu and word in cmu:
+            # CMU dict returns multiple pronunciations, take the first
+            phonemes = cmu[word][0]
+            # Remove stress markers (0, 1, 2) from vowels
+            phonemes = [p.rstrip('012') for p in phonemes]
+            return phonemes
+
+    # Fall back to G2P
+    if G2P_AVAILABLE:
+        g2p = _get_g2p_model()
+        if g2p:
+            phonemes = g2p(word)
+            return phonemes
+
+    # If both fail, return empty list
+    return []
+
+
+def arpabet_to_ipa(arpabet: str) -> str:
+    """
+    Convert ARPABET phoneme to IPA (International Phonetic Alphabet).
+
+    Args:
+        arpabet: ARPABET phoneme (e.g., 'SH', 'TH', 'IH')
+
+    Returns:
+        IPA equivalent (e.g., 'ʃ', 'θ', 'ɪ')
+    """
+    # Mapping from ARPABET to IPA
+    arpabet_to_ipa_map = {
+        # Consonants
+        'P': 'p', 'B': 'b', 'T': 't', 'D': 'd', 'K': 'k', 'G': 'ɡ',
+        'F': 'f', 'V': 'v', 'TH': 'θ', 'DH': 'ð', 'S': 's', 'Z': 'z',
+        'SH': 'ʃ', 'ZH': 'ʒ', 'HH': 'h', 'M': 'm', 'N': 'n', 'NG': 'ŋ',
+        'L': 'l', 'R': 'r', 'W': 'w', 'Y': 'j', 'CH': 'tʃ', 'JH': 'dʒ',
+
+        # Vowels (monophthongs)
+        'IY': 'i', 'IH': 'ɪ', 'EH': 'ɛ', 'AE': 'æ', 'AA': 'ɑ', 'AO': 'ɔ',
+        'UH': 'ʊ', 'UW': 'u', 'AH': 'ʌ', 'ER': 'ɝ', 'AX': 'ə', 'IX': 'ɨ',
+
+        # Diphthongs
+        'EY': 'eɪ', 'AY': 'aɪ', 'OW': 'oʊ', 'AW': 'aʊ', 'OY': 'ɔɪ'
+    }
+
+    return arpabet_to_ipa_map.get(arpabet, arpabet)
+
+
+def format_phonemes_ipa(phonemes: List[str]) -> str:
+    """
+    Format a list of ARPABET phonemes as IPA string.
+
+    Args:
+        phonemes: List of ARPABET phonemes
+
+    Returns:
+        IPA formatted string in slashes (e.g., "/ʃɪp/")
+
+    Example:
+        >>> format_phonemes_ipa(['SH', 'IH', 'P'])
+        '/ʃɪp/'
+    """
+    if not phonemes:
+        return '/?/'
+
+    ipa_phonemes = [arpabet_to_ipa(p) for p in phonemes]
+    return f"/{' '.join(ipa_phonemes)}/"
 
 
 # ============================================================================
@@ -179,6 +350,88 @@ def align_tokens(ref_tokens: List[str], hyp_tokens: List[str]) -> List[Alignment
                 ))
 
     return operations
+
+
+def align_phonemes(ref_phonemes: List[str], hyp_phonemes: List[str]) -> List[Tuple[str, str, str]]:
+    """
+    Align two phoneme sequences using edit distance.
+
+    Args:
+        ref_phonemes: Reference phoneme sequence (expected)
+        hyp_phonemes: Hypothesis phoneme sequence (actual)
+
+    Returns:
+        List of (operation, ref_phoneme, hyp_phoneme) tuples
+        Operations: 'equal', 'replace', 'delete', 'insert'
+
+    Example:
+        >>> align_phonemes(['SH', 'IH', 'P'], ['CH', 'IH', 'P'])
+        [('replace', 'SH', 'CH'), ('equal', 'IH', 'IH'), ('equal', 'P', 'P')]
+    """
+    operations = []
+    matcher = difflib.SequenceMatcher(None, ref_phonemes, hyp_phonemes)
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == 'equal':
+            for i, j in zip(range(i1, i2), range(j1, j2)):
+                operations.append(('equal', ref_phonemes[i], hyp_phonemes[j]))
+        elif tag == 'replace':
+            for i, j in zip(range(i1, i2), range(j1, j2)):
+                operations.append(('replace', ref_phonemes[i], hyp_phonemes[j]))
+        elif tag == 'delete':
+            for i in range(i1, i2):
+                operations.append(('delete', ref_phonemes[i], ''))
+        elif tag == 'insert':
+            for j in range(j1, j2):
+                operations.append(('insert', '', hyp_phonemes[j]))
+
+    return operations
+
+
+def analyze_phoneme_alignment(ref_word: str, hyp_word: str) -> Optional[PhonemeAlignment]:
+    """
+    Perform detailed phoneme-level alignment between two words.
+
+    Args:
+        ref_word: Reference word (expected)
+        hyp_word: Hypothesis word (actual)
+
+    Returns:
+        PhonemeAlignment object with detailed phoneme-level analysis
+        None if phoneme extraction fails
+    """
+    ref_phonemes = word_to_phonemes(ref_word)
+    hyp_phonemes = word_to_phonemes(hyp_word)
+
+    if not ref_phonemes or not hyp_phonemes:
+        return None
+
+    phoneme_ops = align_phonemes(ref_phonemes, hyp_phonemes)
+    errors = sum(1 for op, _, _ in phoneme_ops if op != 'equal')
+    per = errors / len(ref_phonemes) if ref_phonemes else 0.0
+
+    if ref_word.lower() == hyp_word.lower():
+        error_type = 'correct'
+    elif errors == 0:
+        error_type = 'correct'
+    elif any(op == 'replace' for op, _, _ in phoneme_ops):
+        error_type = 'substitution'
+    elif any(op == 'delete' for op, _, _ in phoneme_ops):
+        error_type = 'deletion'
+    elif any(op == 'insert' for op, _, _ in phoneme_ops):
+        error_type = 'insertion'
+    else:
+        error_type = 'unknown'
+
+    return PhonemeAlignment(
+        ref_word=ref_word,
+        hyp_word=hyp_word,
+        ref_phonemes=ref_phonemes,
+        hyp_phonemes=hyp_phonemes,
+        phoneme_operations=phoneme_ops,
+        phoneme_error_rate=per,
+        error_type=error_type
+    )
 
 
 # ============================================================================
@@ -715,6 +968,68 @@ def analyze_intelligibility(error_analysis: ErrorAnalysis) -> IntelligibilityAna
         insertions=error_analysis.insertions,
         total_critical_errors=total_critical
     )
+
+
+def create_detailed_word_errors(error_analysis: ErrorAnalysis) -> List[DetailedWordError]:
+    """
+    Create detailed word-level errors with phoneme-level analysis.
+
+    Combines intelligibility assessment with phoneme-level alignment
+    to provide comprehensive error information.
+
+    Args:
+        error_analysis: ErrorAnalysis from detect_errors()
+
+    Returns:
+        List of DetailedWordError objects with phoneme information
+
+    Example:
+        >>> result = run_text_pipeline("ship on water", "chip on water")
+        >>> detailed_errors = create_detailed_word_errors(result.error_analysis)
+        >>> detailed_errors[0].ref_word
+        'ship'
+        >>> detailed_errors[0].hyp_word
+        'chip'
+        >>> detailed_errors[0].ref_phonemes
+        ['SH', 'IH', 'P']
+        >>> detailed_errors[0].phoneme_errors[0].error_type
+        'substitution'
+    """
+    detailed_errors = []
+
+    for ref_word, hyp_word in error_analysis.substitutions:
+        # Get intelligibility impact
+        impact = assess_intelligibility_impact(ref_word, hyp_word)
+
+        # Get phoneme-level alignment
+        phoneme_align = analyze_phoneme_alignment(ref_word, hyp_word)
+
+        if phoneme_align:
+            # Extract phoneme errors
+            phoneme_errors = []
+            for pos, (op, ref_ph, hyp_ph) in enumerate(phoneme_align.phoneme_operations):
+                if op != 'equal':
+                    phoneme_errors.append(PhonemeError(
+                        position=pos,
+                        ref_phoneme=ref_ph if ref_ph else '<deleted>',
+                        hyp_phoneme=hyp_ph if hyp_ph else '<missing>',
+                        error_type=op,
+                        phonetic_features={}  # TODO: Add phonetic feature analysis
+                    ))
+
+            detailed_errors.append(DetailedWordError(
+                ref_word=ref_word,
+                hyp_word=hyp_word,
+                ref_phonemes=phoneme_align.ref_phonemes,
+                hyp_phonemes=phoneme_align.hyp_phonemes,
+                phoneme_errors=phoneme_errors,
+                intelligibility_impact=impact.level,
+                explanation=impact.explanation,
+                minimal_pair=impact.minimal_pair,
+                phoneme_pattern=impact.phoneme_pattern
+            ))
+
+    return detailed_errors
 
 
 def format_intelligibility_feedback(intel_analysis: IntelligibilityAnalysis) -> str:
