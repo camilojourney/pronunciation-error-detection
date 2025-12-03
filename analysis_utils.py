@@ -201,16 +201,25 @@ def word_to_phonemes(word: str, use_cmudict: bool = True) -> List[str]:
         use_cmudict: Whether to use CMU dict first (default True)
 
     Returns:
-        List of phonemes in ARPABET format (e.g., ['SH', 'IH1', 'P'] for "ship")
+        List of phonemes in ARPABET format (e.g., ['SH', 'IH', 'P'] for "ship")
         Returns empty list if conversion fails
 
     Example:
         >>> word_to_phonemes("ship")
-        ['SH', 'IH1', 'P']
+        ['SH', 'IH', 'P']
         >>> word_to_phonemes("think")
-        ['TH', 'IH1', 'NG', 'K']
+        ['TH', 'IH', 'NG', 'K']
     """
+    # Clean the word - remove punctuation and convert to lowercase
     word = word.lower().strip()
+    word = re.sub(r'[^a-z\']', '', word)  # Keep only letters and apostrophes
+
+    if not word:  # Return empty if word is all punctuation
+        return []
+
+    # Check if word contains non-English characters (Arabic, Chinese, etc.)
+    if not all(ord(c) < 128 for c in word):
+        return []
 
     # Try CMU dictionary first
     if use_cmudict and CMUDICT_AVAILABLE:
@@ -226,8 +235,13 @@ def word_to_phonemes(word: str, use_cmudict: bool = True) -> List[str]:
     if G2P_AVAILABLE:
         g2p = _get_g2p_model()
         if g2p:
-            phonemes = g2p(word)
-            return phonemes
+            try:
+                phonemes = g2p(word)
+                # Remove stress markers from G2P output too
+                phonemes = [p.rstrip('012') for p in phonemes]
+                return phonemes
+            except:
+                return []
 
     # If both fail, return empty list
     return []
@@ -279,7 +293,18 @@ def format_phonemes_ipa(phonemes: List[str]) -> str:
     if not phonemes:
         return '/?/'
 
-    ipa_phonemes = [arpabet_to_ipa(p) for p in phonemes]
+    # Convert each phoneme, filter out any that couldn't be converted
+    ipa_phonemes = []
+    for p in phonemes:
+        # Clean the phoneme - remove any remaining stress markers or punctuation
+        p_clean = re.sub(r'[^A-Z]', '', p.upper())
+        if p_clean:
+            ipa = arpabet_to_ipa(p_clean)
+            ipa_phonemes.append(ipa)
+
+    if not ipa_phonemes:
+        return '/?/'
+
     return f"/{' '.join(ipa_phonemes)}/"
 
 
