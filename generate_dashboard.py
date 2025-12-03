@@ -125,6 +125,7 @@ def generate_utterance_card(row: pd.Series, idx: int) -> str:
     speaker_id = row['speaker_id']
     native_lang = row['native_language']
     file_id = row['file_id']
+    audio_path = row.get('audio_path', '')
     ref_text = row['reference']
     hyp_text = row['hypothesis']
     wer = row['wer']
@@ -145,6 +146,34 @@ def generate_utterance_card(row: pd.Series, idx: int) -> str:
         else:
             severity_class = "medium-severity"
 
+    # Audio player HTML (if audio path is available)
+    audio_html = ""
+    if audio_path:
+        # Convert absolute path to relative path from dashboard location
+        from pathlib import Path
+        try:
+            audio_rel_path = Path(audio_path).relative_to(Path.cwd())
+            audio_html = f"""
+            <div class="audio-player">
+                <label>🎧 Listen to pronunciation:</label>
+                <audio controls preload="none">
+                    <source src="../../{audio_rel_path}" type="audio/wav">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+            """
+        except:
+            # If relative path fails, use absolute
+            audio_html = f"""
+            <div class="audio-player">
+                <label>🎧 Listen to pronunciation:</label>
+                <audio controls preload="none">
+                    <source src="file://{audio_path}" type="audio/wav">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+            """
+
     card_html = f"""
     <div class="utterance-card {severity_class}" data-speaker="{speaker_id}" data-language="{native_lang}" data-errors="{critical_errors}">
         <div class="card-header">
@@ -158,6 +187,8 @@ def generate_utterance_card(row: pd.Series, idx: int) -> str:
                 <span class="metric errors">Errors: {critical_errors}</span>
             </div>
         </div>
+
+        {audio_html}
 
         <div class="card-body">
             <div class="text-comparison">
@@ -428,6 +459,27 @@ def get_css_styles() -> str:
             margin-bottom: 15px;
             padding-bottom: 15px;
             border-bottom: 1px solid #ddd;
+        }
+
+        .audio-player {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .audio-player label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .audio-player audio {
+            width: 100%;
+            max-width: 500px;
+            height: 40px;
         }
 
         .speaker-info {
