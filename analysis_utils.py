@@ -2,36 +2,33 @@
 NLP Analysis Utilities for Pronunciation Error Detection
 =========================================================
 
-This module contains all the core functions needed for the pronunciation
-error detection pipeline, including:
+This module contains core NLP functions for pronunciation error detection:
 - Text preprocessing and normalization
 - Sequence alignment using Levenshtein distance
 - Error detection and classification
-- Evaluation metrics (WER)
+- Evaluation metrics (WER, CER)
 - ASR transcription using Whisper
+- Intelligibility analysis
+
+For phoneme extraction, see phoneme_sources.py
 
 Author: Camilo Martinez
 Course: Natural Language Processing
 """
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import List, Tuple, Optional, Dict
 import difflib
 
-# Phoneme analysis imports
-try:
-    from g2p_en import G2p
-    G2P_AVAILABLE = True
-except ImportError:
-    G2P_AVAILABLE = False
-
-try:
-    import nltk
-    from nltk.corpus import cmudict
-    CMUDICT_AVAILABLE = True
-except ImportError:
-    CMUDICT_AVAILABLE = False
+# Import phoneme functions from unified module
+from phoneme_sources import (
+    arpabet_to_ipa,
+    format_ipa,
+    get_dictionary_phonemes,
+    ARPABET_TO_IPA
+)
 
 
 # ============================================================================
@@ -110,34 +107,46 @@ class DetailedWordError:
 
 def clean_text(text: str) -> str:
     """
-    Clean and normalize text for processing.
+    Lightly normalize text without stripping meaning-carrying characters.
 
-    Steps:
-    1. Convert to lowercase
-    2. Remove punctuation
-    3. Normalize whitespace
+    - Unicode-normalize and standardize curly quotes/dashes
+    - Lowercase (keeps casing info recoverable via tokens/features if needed upstream)
+    - Keep intra-word apostrophes (e.g., "don't" -> "don't") for contractions
+    - Strip other punctuation/delimiters and normalize whitespace
 
-    Args:
-        text: Raw text string
-
-    Returns:
-        Cleaned text string
-
-    Example:
+    Examples:
         >>> clean_text("The Weather is VERY nice today!")
         'the weather is very nice today'
+        >>> clean_text("God bless 'em, I hope I'll go on seeing them forever.")
+        "god bless 'em i hope i'll go on seeing them forever"
     """
-    # Convert to lowercase
+    if not text:
+        return ""
+
+    # Unicode normalize and standardize common punctuation variants
+    text = unicodedata.normalize("NFKC", text)
+    text = (
+        text.replace("’", "'")
+        .replace("‘", "'")
+        .replace("“", '"')
+        .replace("”", '"')
+        .replace("—", "-")
+        .replace("–", "-")
+    )
+
     text = text.lower()
 
-    # Remove punctuation (keep only alphanumeric and spaces)
-    text = re.sub(r'[^a-z0-9\s]', '', text)
+    # Remove everything except letters, digits, spaces, apostrophes, and hyphens
+    text = re.sub(r"[^a-z0-9'\s-]", " ", text)
 
-    # Normalize whitespace (collapse multiple spaces)
-    text = re.sub(r'\s+', ' ', text)
+    # Turn hyphens into spaces to avoid sticking words together
+    text = re.sub(r"-+", " ", text)
 
-    # Strip leading/trailing whitespace
-    text = text.strip()
+    # Drop apostrophes that are not inside words (keep contractions)
+    text = re.sub(r"(?<![a-z0-9])'|'(?![a-z0-9])", " ", text)
+
+    # Normalize whitespace and trim
+    text = re.sub(r"\s+", " ", text).strip()
 
     return text
 
@@ -163,38 +172,14 @@ def tokenize(text: str) -> List[str]:
 
 
 # ============================================================================
-# PHONEME EXTRACTION
+# PHONEME EXTRACTION (Backward Compatibility Wrappers)
 # ============================================================================
-
-# Initialize G2P model (grapheme-to-phoneme)
-_g2p_model = None
-_cmudict = None
-
-def _get_g2p_model():
-    """Lazy initialization of G2P model."""
-    global _g2p_model
-    if _g2p_model is None and G2P_AVAILABLE:
-        _g2p_model = G2p()
-    return _g2p_model
-
-def _get_cmudict():
-    """Lazy initialization of CMU dictionary."""
-    global _cmudict
-    if _cmudict is None and CMUDICT_AVAILABLE:
-        try:
-            _cmudict = cmudict.dict()
-        except LookupError:
-            # Download cmudict if not available
-            nltk.download('cmudict', quiet=True)
-            _cmudict = cmudict.dict()
-    return _cmudict
-
 
 def word_to_phonemes(word: str, use_cmudict: bool = True) -> List[str]:
     """
     Convert a word to its phoneme sequence.
 
-    Uses CMU Pronunciation Dictionary (ARPABET) by default, falls back to G2P.
+    This is a backward-compatibility wrapper around phoneme_sources.
 
     Args:
         word: Word to convert to phonemes
@@ -202,165 +187,46 @@ def word_to_phonemes(word: str, use_cmudict: bool = True) -> List[str]:
 
     Returns:
         List of phonemes in ARPABET format (e.g., ['SH', 'IH', 'P'] for "ship")
-        Returns empty list if conversion fails
 
     Example:
         >>> word_to_phonemes("ship")
         ['SH', 'IH', 'P']
-        >>> word_to_phonemes("think")
-        ['TH', 'IH', 'NG', 'K']
     """
-    # Clean the word - remove punctuation and convert to lowercase
-    word = word.lower().strip()
-    word = re.sub(r'[^a-z\']', '', word)  # Keep only letters and apostrophes
+    # Use the unified phoneme source
+    result = get_dictionary_phonemes(word)
 
-    if not word:  # Return empty if word is all punctuation
-        return []
+    if result.success and result.words:
+        # Convert IPA back to ARPABET for backward compatibility
+        phoneme_word = result.words[0]
+        # Look up ARPABET from IPA using reverse mapping
+        ipa_to_arpabet = {v: k for k, v in ARPABET_TO_IPA.items()}
+        arpabet_phonemes = []
+        for ipa in phoneme_word.phonemes:
+            # Try to find ARPABET, fallback to uppercase IPA
+            arpabet = ipa_to_arpabet.get(ipa, ipa.upper())
+            arpabet_phonemes.append(arpabet)
+        return arpabet_phonemes
 
-    # Check if word contains non-English characters (Arabic, Chinese, etc.)
-    if not all(ord(c) < 128 for c in word):
-        return []
-
-    # Try CMU dictionary first
-    if use_cmudict and CMUDICT_AVAILABLE:
-        cmu = _get_cmudict()
-        if cmu and word in cmu:
-            # CMU dict returns multiple pronunciations, take the first
-            phonemes = cmu[word][0]
-            # Remove stress markers (0, 1, 2) from vowels
-            phonemes = [p.rstrip('012') for p in phonemes]
-            return phonemes
-
-    # Fall back to G2P
-    if G2P_AVAILABLE:
-        g2p = _get_g2p_model()
-        if g2p:
-            try:
-                phonemes = g2p(word)
-                # Remove stress markers from G2P output too
-                phonemes = [p.rstrip('012') for p in phonemes]
-                return phonemes
-            except:
-                return []
-
-    # If both fail, return empty list
     return []
-
-
-def arpabet_to_ipa(arpabet: str) -> str:
-    """
-    Convert ARPABET phoneme to IPA (International Phonetic Alphabet).
-
-    Args:
-        arpabet: ARPABET phoneme (e.g., 'SH', 'TH', 'IH')
-
-    Returns:
-        IPA equivalent (e.g., 'ʃ', 'θ', 'ɪ')
-    """
-    # Official ARPABET to IPA mapping
-    # Source: CMU Pronouncing Dictionary & IPA standards
-    arpabet_to_ipa_map = {
-        # ===== CONSONANTS =====
-        # Stops
-        'P': 'p',   # voiceless bilabial stop (pin)
-        'B': 'b',   # voiced bilabial stop (bin)
-        'T': 't',   # voiceless alveolar stop (tin)
-        'D': 'd',   # voiced alveolar stop (din)
-        'K': 'k',   # voiceless velar stop (kin)
-        'G': 'ɡ',   # voiced velar stop (give)
-
-        # Fricatives
-        'F': 'f',   # voiceless labiodental fricative (fin)
-        'V': 'v',   # voiced labiodental fricative (van)
-        'TH': 'θ',  # voiceless dental fricative (thin)
-        'DH': 'ð',  # voiced dental fricative (then)
-        'S': 's',   # voiceless alveolar fricative (sin)
-        'Z': 'z',   # voiced alveolar fricative (zen)
-        'SH': 'ʃ',  # voiceless postalveolar fricative (shin)
-        'ZH': 'ʒ',  # voiced postalveolar fricative (measure)
-        'HH': 'h',  # voiceless glottal fricative (hat)
-
-        # Affricates
-        'CH': 'tʃ', # voiceless postalveolar affricate (chin)
-        'JH': 'dʒ', # voiced postalveolar affricate (gin)
-
-        # Nasals
-        'M': 'm',   # bilabial nasal (man)
-        'N': 'n',   # alveolar nasal (nan)
-        'NG': 'ŋ',  # velar nasal (sing)
-
-        # Liquids
-        'L': 'l',   # alveolar lateral approximant (let)
-        'R': 'ɹ',   # alveolar approximant (red) - changed from 'r' to 'ɹ'
-
-        # Semivowels/Glides
-        'W': 'w',   # labio-velar approximant (wet)
-        'Y': 'j',   # palatal approximant (yet)
-
-        # ===== VOWELS =====
-        # Monophthongs - Tense
-        'IY': 'i',  # high front tense (beet, see)
-        'UW': 'u',  # high back rounded (boot, too)
-
-        # Monophthongs - Lax
-        'IH': 'ɪ',  # high front lax (bit, sit)
-        'UH': 'ʊ',  # high back rounded lax (book, put)
-        'EH': 'ɛ',  # mid front (bet, met)
-        'AH': 'ʌ',  # mid central (but, cut)
-        'AE': 'æ',  # low front (bat, cat)
-        'AA': 'ɑ',  # low back (bot, father)
-        'AO': 'ɔ',  # mid back rounded (bought, caught)
-
-        # R-colored vowels
-        'ER': 'ɚ',  # r-colored mid central (butter, bird) - changed from 'ɝ'
-        'AXR': 'ɚ', # r-colored schwa (butter)
-
-        # Reduced vowels
-        'AX': 'ə',  # schwa (about, comma)
-        'IX': 'ɨ',  # high central (roses)
-        'AXH': 'ə̥', # voiceless schwa
-
-        # ===== DIPHTHONGS =====
-        'EY': 'eɪ', # (bait, say)
-        'AY': 'aɪ', # (bite, my)
-        'OW': 'oʊ', # (boat, show)
-        'AW': 'aʊ', # (bout, now)
-        'OY': 'ɔɪ', # (boy, toy)
-    }
-
-    return arpabet_to_ipa_map.get(arpabet, arpabet)
 
 
 def format_phonemes_ipa(phonemes: List[str]) -> str:
     """
     Format a list of ARPABET phonemes as IPA string.
 
+    This is a backward-compatibility wrapper around phoneme_sources.format_ipa.
+
     Args:
         phonemes: List of ARPABET phonemes
 
     Returns:
-        IPA formatted string in slashes (e.g., "/ʃɪp/")
+        IPA formatted string in slashes (e.g., "/ʃ ɪ p/")
 
     Example:
         >>> format_phonemes_ipa(['SH', 'IH', 'P'])
-        '/ʃɪp/'
+        '/ʃ ɪ p/'
     """
-    if not phonemes:
-        return '/?/'
-
-    # Convert each phoneme, filter out any that couldn't be converted
-    ipa_phonemes = []
-    for p in phonemes:
-        # Clean the phoneme - remove any remaining stress markers or punctuation
-        p_clean = re.sub(r'[^A-Z]', '', p.upper())
-        if p_clean:
-            ipa = arpabet_to_ipa(p_clean)
-            ipa_phonemes.append(ipa)
-
-    if not ipa_phonemes:
-        return '/?/'
-
-    return f"/{' '.join(ipa_phonemes)}/"
+    return format_ipa(phonemes)
 
 
 # ============================================================================

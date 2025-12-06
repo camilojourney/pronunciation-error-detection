@@ -15,14 +15,56 @@ Course: Natural Language Processing
 import json
 import pandas as pd
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
+
+# Use consolidated phoneme sources module
+from phoneme_sources import (
+    get_all_phoneme_sources,
+    arpabet_to_ipa,
+    format_ipa,
+    PhonemeSource,
+    PhonemeWord,
+    get_mfa_phonemes,
+    get_wav2vec_phonemes
+)
+
+# Keep backward compatibility for existing code
 from analysis_utils import (
     word_to_phonemes,
-    format_phonemes_ipa,
-    arpabet_to_ipa,
-    analyze_phoneme_alignment,
-    assess_intelligibility_impact
+    format_phonemes_ipa
 )
+
+# Note: Old modules are deprecated but imports kept for backward compatibility
+try:
+    from forced_alignment import (
+        get_phonemes_from_audio,
+        mfa_phone_to_ipa,
+        UtteranceAlignment,
+        parse_l2arctic_textgrid
+    )
+    FORCED_ALIGNMENT_AVAILABLE = True
+except ImportError:
+    # Use new phoneme_sources module instead
+    FORCED_ALIGNMENT_AVAILABLE = False
+
+try:
+    from wav2vec_phoneme import get_phonemes_for_display
+    WAV2VEC_AVAILABLE = True
+except ImportError:
+    # Use new phoneme_sources module instead
+    WAV2VEC_AVAILABLE = False
+
+
+def get_annotation_path(audio_path: str) -> Optional[str]:
+    """Get the TextGrid annotation path for an audio file."""
+    audio_path = Path(audio_path)
+
+    # L2-ARCTIC structure: speaker/wav/file.wav -> speaker/annotation/file.TextGrid
+    if 'wav' in str(audio_path):
+        annotation_path = Path(str(audio_path).replace('/wav/', '/annotation/').replace('.wav', '.TextGrid'))
+        if annotation_path.exists():
+            return str(annotation_path)
+    return None
 
 
 def generate_html_dashboard(
@@ -71,6 +113,9 @@ def generate_dashboard_html(df: pd.DataFrame) -> str:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pronunciation Error Analysis Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         {get_css_styles()}
     </style>
@@ -132,11 +177,30 @@ def generate_utterance_card(row: pd.Series, idx: int) -> str:
     critical_errors = row.get('critical_errors', 0)
     high_impact = row.get('high_impact_errors', 0)
 
-    # Generate word-by-word comparison with phoneme info
-    ref_words = ref_text.lower().split()
-    hyp_words = hyp_text.lower().split()
+    # Get all 3 phoneme sources using unified API
+    phoneme_sources_html = ""
+    if audio_path:
+        try:
+            sources = get_all_phoneme_sources(
+                audio_path=audio_path,
+                expected_text=ref_text
+            )
+            phoneme_sources_html = generate_three_sources_display(sources, ref_text)
+        except Exception as e:
+            # If phoneme extraction fails, fall back to text-only display
+            phoneme_sources_html = f"""
+            <div class="phoneme-section">
+                <p style="color: #666; font-style: italic;">⚠️ Phoneme extraction unavailable: {str(e)}</p>
+            </div>
+            """
 
-    comparison_html = generate_word_comparison(ref_words, hyp_words)
+    # Also show Whisper transcription for comparison
+    whisper_html = f"""
+    <div class="phoneme-section">
+        <h4>🎤 Whisper Transcription</h4>
+        <p class="text-display">{hyp_text}</p>
+    </div>
+    """
 
     # Determine error severity class
     severity_class = "no-errors"
@@ -149,7 +213,6 @@ def generate_utterance_card(row: pd.Series, idx: int) -> str:
     # Audio player HTML (if audio path is available)
     audio_html = ""
     if audio_path:
-        # Convert absolute path to relative path from dashboard location
         from pathlib import Path
         try:
             audio_rel_path = Path(audio_path).relative_to(Path.cwd())
@@ -163,7 +226,6 @@ def generate_utterance_card(row: pd.Series, idx: int) -> str:
             </div>
             """
         except:
-            # If relative path fails, use absolute
             audio_html = f"""
             <div class="audio-player">
                 <label>🎧 Listen to pronunciation:</label>
@@ -184,79 +246,232 @@ def generate_utterance_card(row: pd.Series, idx: int) -> str:
             </div>
             <div class="metrics">
                 <span class="metric wer">WER: {wer:.1%}</span>
-                <span class="metric errors">Errors: {critical_errors}</span>
             </div>
         </div>
 
         {audio_html}
 
         <div class="card-body">
-            <div class="text-comparison">
-                {comparison_html}
-            </div>
+            {phoneme_sources_html}
+            {whisper_html}
         </div>
     </div>
     """
     return card_html
 
 
-def generate_word_comparison(ref_words: List[str], hyp_words: List[str]) -> str:
-    """Generate HTML comparison of reference vs hypothesis with phoneme details."""
+def generate_three_sources_display(sources: Dict[str, PhonemeSource], ref_text: str) -> str:
+    """
+    Generate HTML display for all 3 phoneme sources with difference highlighting.
 
-    # Simple alignment (for demo - in production use proper alignment)
-    max_len = max(len(ref_words), len(hyp_words))
+    Args:
+        sources: Dictionary with 'dictionary', 'whisper_large_mfa', 'whisper_large_wav2vec'
+        ref_text: Reference text for context
 
-    ref_html = '<div class="reference-line"><strong>Expected:</strong> '
-    hyp_html = '<div class="hypothesis-line"><strong>Actual:</strong> '
-    phoneme_html = '<div class="phoneme-details">'
+    Returns:
+        HTML string showing all 3 sources with differences highlighted
+    """
+    html_parts = []
 
-    for i in range(max_len):
-        ref_word = ref_words[i] if i < len(ref_words) else ""
-        hyp_word = hyp_words[i] if i < len(hyp_words) else ""
+    # Source 1: Dictionary (Expected)
+    dict_src = sources.get('dictionary')
+    if dict_src and dict_src.success and dict_src.words:
+        words_html = []
+        for pw in dict_src.words:
+            words_html.append(f'<span class="phoneme-word">{pw.word} <span class="ipa">{pw.ipa}</span></span>')
 
-        if ref_word and hyp_word:
-            if ref_word == hyp_word:
-                # Correct
-                ref_html += f'<span class="word-correct">{ref_word}</span> '
-                hyp_html += f'<span class="word-correct">{hyp_word}</span> '
+        html_parts.append(f"""
+        <div class="phoneme-section">
+            <h4>📚 Dictionary (Expected Pronunciation)</h4>
+            <div class="phoneme-words">
+                {' '.join(words_html)}
+            </div>
+        </div>
+        """)
+
+    # Source 2: Whisper Large-v3 + MFA (Actual via alignment)
+    mfa_src = sources.get('whisper_large_mfa')
+    if mfa_src and mfa_src.success and mfa_src.words:
+        words_html = []
+        differences = []
+
+        # Compare with dictionary to highlight differences
+        dict_map = {pw.word.lower(): pw.ipa for pw in dict_src.words} if dict_src and dict_src.words else {}
+
+        for pw in mfa_src.words:
+            word_lower = pw.word.lower()
+            expected_ipa = dict_map.get(word_lower, '')
+            actual_ipa = pw.ipa
+
+            # Check if different (normalize by removing slashes)
+            if expected_ipa and expected_ipa.strip('/') != actual_ipa.strip('/'):
+                # Highlight difference in red
+                words_html.append(f'<span class="phoneme-word error">{pw.word} <span class="ipa">{pw.ipa}</span></span>')
+                differences.append((pw.word, expected_ipa, actual_ipa))
             else:
-                # Error - check if minimal pair
-                impact = assess_intelligibility_impact(ref_word, hyp_word)
-                error_class = f"word-error-{impact.level.lower()}"
+                words_html.append(f'<span class="phoneme-word">{pw.word} <span class="ipa">{pw.ipa}</span></span>')
 
-                # Get phonemes
-                ref_phonemes = word_to_phonemes(ref_word)
-                hyp_phonemes = word_to_phonemes(hyp_word)
-                ref_ipa = format_phonemes_ipa(ref_phonemes)
-                hyp_ipa = format_phonemes_ipa(hyp_phonemes)
+        html_parts.append(f"""
+        <div class="phoneme-section">
+            <h4>🔬 Whisper Large-v3 + MFA (Actual via Forced Alignment)</h4>
+            <div class="phoneme-words">
+                {' '.join(words_html)}
+            </div>
+        </div>
+        """)
+    elif mfa_src and not mfa_src.success:
+        html_parts.append(f"""
+        <div class="phoneme-section">
+            <h4>🔬 Whisper Large-v3 + MFA</h4>
+            <p style="color: #999; font-style: italic;">⚠️ MFA not available (requires praatio library)</p>
+        </div>
+        """)
 
-                ref_html += f'<span class="{error_class}" title="{ref_ipa}">{ref_word}</span> '
-                hyp_html += f'<span class="{error_class}" title="{hyp_ipa}">{hyp_word}</span> '
+    # Source 3: Whisper Large-v3 + Wav2Vec2 (Actual via recognition)
+    wav2vec_src = sources.get('whisper_large_wav2vec')
+    if wav2vec_src and wav2vec_src.success and wav2vec_src.words:
+        words_html = []
 
-                # Add phoneme detail
-                phoneme_html += f'''
-                <div class="phoneme-error">
-                    <span class="error-badge-{impact.level.lower()}">{impact.level}</span>
-                    <strong>'{ref_word}' → '{hyp_word}'</strong><br>
-                    <span class="ipa">Expected: {ref_ipa}</span><br>
-                    <span class="ipa">Actual: {hyp_ipa}</span><br>
-                    <span class="explanation">{impact.explanation}</span>
-                </div>
-                '''
-        elif ref_word:
-            # Deletion
-            ref_html += f'<span class="word-deleted">{ref_word}</span> '
-            hyp_html += '<span class="word-deleted">—</span> '
-        elif hyp_word:
-            # Insertion
-            ref_html += '<span class="word-inserted">—</span> '
-            hyp_html += f'<span class="word-inserted">{hyp_word}</span> '
+        # Compare with dictionary to highlight differences
+        dict_map = {pw.word.lower(): pw.ipa for pw in dict_src.words} if dict_src and dict_src.words else {}
 
-    ref_html += '</div>'
-    hyp_html += '</div>'
-    phoneme_html += '</div>'
+        for pw in wav2vec_src.words:
+            word_lower = pw.word.lower()
+            expected_ipa = dict_map.get(word_lower, '')
+            actual_ipa = pw.ipa
 
-    return ref_html + hyp_html + phoneme_html
+            # Check if different (normalize by removing slashes)
+            if expected_ipa and expected_ipa.strip('/') != actual_ipa.strip('/'):
+                # Highlight difference in red
+                words_html.append(f'<span class="phoneme-word error">{pw.word} <span class="ipa">{pw.ipa}</span></span>')
+            else:
+                words_html.append(f'<span class="phoneme-word">{pw.word} <span class="ipa">{pw.ipa}</span></span>')
+
+        html_parts.append(f"""
+        <div class="phoneme-section">
+            <h4>🎧 Whisper Large-v3 + Wav2Vec2 (Actual via Direct Recognition)</h4>
+            <div class="phoneme-words">
+                {' '.join(words_html)}
+            </div>
+        </div>
+        """)
+    elif wav2vec_src and not wav2vec_src.success:
+        html_parts.append(f"""
+        <div class="phoneme-section">
+            <h4>🎧 Whisper Large-v3 + Wav2Vec2</h4>
+            <p style="color: #999; font-style: italic;">⚠️ Wav2Vec2 error: {wav2vec_src.error}</p>
+        </div>
+        """)
+
+    return '\n'.join(html_parts)
+
+
+def generate_wav2vec_display(wav2vec_result: dict) -> str:
+    """
+    Generate display showing phonemes from Wav2Vec2 direct audio recognition.
+    """
+    if not wav2vec_result.get('success'):
+        return ""
+
+    raw_output = wav2vec_result.get('raw_output', '')
+
+    return f'''
+    <div class="text-section wav2vec-phonemes">
+        <h4>🎧 Wav2Vec2 (Direct Audio Recognition)</h4>
+        <div class="phoneme-stream">
+            /{raw_output}/
+        </div>
+    </div>
+    '''
+
+
+def generate_mfa_phonemes_display(alignment, ref_text: str) -> str:
+    """
+    Generate display showing ACTUAL phonemes from MFA forced alignment.
+
+    Compares actual pronunciation against expected dictionary phonemes.
+    """
+    if not alignment or not alignment.words:
+        return ""
+
+    words_html = ""
+    errors_found = 0
+
+    for word_align in alignment.words:
+        word = word_align.word
+
+        # Actual phonemes from MFA
+        actual_ipa = [mfa_phone_to_ipa(p.phoneme) for p in word_align.phonemes]
+        actual_str = " ".join(actual_ipa) if actual_ipa else "—"
+
+        # Expected phonemes from dictionary
+        expected = word_to_phonemes(word)
+        if expected:
+            expected_ipa = [p.strip('/').strip() for p in format_phonemes_ipa(expected).split()]
+        else:
+            expected_ipa = []
+
+        # Check for pronunciation error
+        has_error = actual_ipa != expected_ipa
+        error_class = "pronunciation-error" if has_error else ""
+        if has_error:
+            errors_found += 1
+
+        words_html += f'''
+        <div class="word-block {error_class}">
+            <span class="word-text">{word}</span>
+            <span class="word-ipa">/{actual_str}/</span>
+        </div>
+        '''
+
+    error_badge = f'<span class="error-badge">{errors_found} errors</span>' if errors_found > 0 else '<span class="success-badge">✓ Perfect</span>'
+
+    return f'''
+    <div class="text-section mfa-phonemes">
+        <h4>🎯 Actual Pronunciation (MFA) {error_badge}</h4>
+        <div class="word-container">
+            {words_html}
+        </div>
+    </div>
+    '''
+
+
+def generate_text_with_phonemes(text: str, label: str) -> str:
+    """
+    Generate a simple display of text with phonemes directly below each word.
+    No complex alignment - just show what phonemes each word should have.
+    """
+    import re
+
+    # Clean and split into words
+    words = text.split()
+
+    words_html = ""
+    for word in words:
+        # Clean the word for phoneme lookup (remove punctuation)
+        clean_word = re.sub(r'[^\w\']', '', word.lower())
+
+        if clean_word:
+            phonemes = word_to_phonemes(clean_word)
+            ipa = format_phonemes_ipa(phonemes) if phonemes else "—"
+        else:
+            ipa = ""
+
+        words_html += f'''
+        <div class="word-block">
+            <span class="word-text">{word}</span>
+            <span class="word-ipa">{ipa}</span>
+        </div>
+        '''
+
+    return f'''
+    <div class="text-section">
+        <div class="section-label">{label}:</div>
+        <div class="words-container">
+            {words_html}
+        </div>
+    </div>
+    '''
 
 
 def generate_statistics_summary(df: pd.DataFrame) -> str:
@@ -425,31 +640,11 @@ def get_css_styles() -> str:
         }
 
         .utterance-card {
-            background: #f9f9f9;
-            border-left: 5px solid #4CAF50;
+            background: #fafafa;
             padding: 20px;
             margin-bottom: 20px;
             border-radius: 8px;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .utterance-card:hover {
-            transform: translateX(5px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
-
-        .utterance-card.high-severity {
-            border-left-color: #f44336;
-            background: #ffebee;
-        }
-
-        .utterance-card.medium-severity {
-            border-left-color: #ff9800;
-            background: #fff3e0;
-        }
-
-        .utterance-card.no-errors {
-            border-left-color: #4CAF50;
+            border: 1px solid #e0e0e0;
         }
 
         .card-header {
@@ -458,13 +653,13 @@ def get_css_styles() -> str:
             align-items: center;
             margin-bottom: 15px;
             padding-bottom: 15px;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px solid #eee;
         }
 
         .audio-player {
             background: #f5f5f5;
             padding: 15px;
-            margin: 15px 0;
+            margin-bottom: 20px;
             border-radius: 6px;
             border: 1px solid #e0e0e0;
         }
@@ -523,129 +718,236 @@ def get_css_styles() -> str:
             color: #1976d2;
         }
 
-        .metric.errors {
-            background: #ffebee;
-            color: #c62828;
+        .hidden {
+            display: none !important;
         }
 
-        .text-comparison {
-            font-family: 'Courier New', monospace;
-            line-height: 1.8;
-        }
-
-        .reference-line, .hypothesis-line {
-            margin-bottom: 10px;
-            font-size: 1.05em;
-        }
-
-        .reference-line strong, .hypothesis-line strong {
-            color: #666;
-            margin-right: 10px;
-        }
-
-        .word-correct {
-            color: #4CAF50;
-            padding: 2px 4px;
-        }
-
-        .word-error-high {
-            background: #f44336;
-            color: white;
-            padding: 3px 6px;
-            border-radius: 4px;
-            cursor: help;
-        }
-
-        .word-error-medium {
-            background: #ff9800;
-            color: white;
-            padding: 3px 6px;
-            border-radius: 4px;
-            cursor: help;
-        }
-
-        .word-error-low {
-            background: #ffc107;
-            color: #333;
-            padding: 3px 6px;
-            border-radius: 4px;
-            cursor: help;
-        }
-
-        .word-deleted {
-            background: #ffcdd2;
-            color: #c62828;
-            padding: 3px 6px;
-            border-radius: 4px;
-            text-decoration: line-through;
-        }
-
-        .word-inserted {
-            background: #b3e5fc;
-            color: #0277bd;
-            padding: 3px 6px;
-            border-radius: 4px;
-        }
-
-        .phoneme-details {
-            margin-top: 15px;
+        /* ===== Minimalistic Text + Phoneme Display ===== */
+        .text-section {
+            margin-bottom: 20px;
             padding: 15px;
             background: white;
-            border-radius: 6px;
+            border-radius: 8px;
             border: 1px solid #e0e0e0;
         }
 
-        .phoneme-error {
-            margin-bottom: 12px;
-            padding: 10px;
-            background: #f5f5f5;
-            border-radius: 4px;
+        .text-section:last-child {
+            margin-bottom: 0;
         }
 
-        .error-badge-high {
+        .section-label {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .words-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        .word-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            min-width: 50px;
+        }
+
+        .word-text {
+            font-size: 1.1em;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .word-ipa {
+            font-family: 'Noto Sans', 'Roboto', 'Arial', sans-serif;
+            font-size: 1.1em;
+            color: #5f6368;
+            letter-spacing: 1px;
+            font-weight: 400;
+            line-height: 1.6;
+        }
+
+        /* Actual phonemes from audio annotation */
+        .text-section.actual-phonemes {
+            background: #e8f5e9;
+            border-color: #4CAF50;
+        }
+
+        .text-section.actual-phonemes .section-label {
+            color: #2e7d32;
+        }
+
+        .word-block.actual {
+            background: #c8e6c9;
+            border-color: #81c784;
+        }
+
+        .word-block.actual .word-ipa {
+            color: #1b5e20;
+        }
+
+        .word-duration {
+            font-size: 0.7em;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* MFA Actual Pronunciation Section */
+        .text-section.mfa-phonemes {
+            background: #fff3e0;
+            border-color: #ff9800;
+        }
+
+        .text-section.mfa-phonemes h4 {
+            color: #e65100;
+            margin: 0 0 12px 0;
+            font-size: 0.95em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .text-section.mfa-phonemes .word-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .text-section.mfa-phonemes .word-block {
+            background: #ffe0b2;
+            border-color: #ffb74d;
+        }
+
+        .text-section.mfa-phonemes .word-block .word-ipa {
+            color: #e65100;
+        }
+
+        /* Pronunciation error highlighting */
+        .word-block.pronunciation-error {
+            background: #ffebee !important;
+            border-color: #f44336 !important;
+            box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.3);
+        }
+
+        .word-block.pronunciation-error .word-text {
+            color: #c62828;
+        }
+
+        .word-block.pronunciation-error .word-ipa {
+            color: #b71c1c !important;
+            font-weight: bold;
+        }
+
+        .error-badge {
             background: #f44336;
             color: white;
             padding: 2px 8px;
-            border-radius: 3px;
+            border-radius: 10px;
             font-size: 0.8em;
-            font-weight: bold;
-            margin-right: 8px;
+            font-weight: 500;
         }
 
-        .error-badge-medium {
-            background: #ff9800;
+        .success-badge {
+            background: #4CAF50;
             color: white;
             padding: 2px 8px;
-            border-radius: 3px;
+            border-radius: 10px;
             font-size: 0.8em;
-            font-weight: bold;
-            margin-right: 8px;
+            font-weight: 500;
         }
 
-        .error-badge-low {
-            background: #ffc107;
-            color: #333;
-            padding: 2px 8px;
-            border-radius: 3px;
-            font-size: 0.8em;
-            font-weight: bold;
-            margin-right: 8px;
+        /* Wav2Vec2 Section */
+        .text-section.wav2vec-phonemes {
+            background: #e3f2fd;
+            border-color: #2196F3;
         }
 
-        .ipa {
-            font-family: 'Lucida Sans Unicode', 'Arial Unicode MS', sans-serif;
-            color: #1976d2;
+        .text-section.wav2vec-phonemes h4 {
+            color: #1565c0;
+            margin: 0 0 12px 0;
             font-size: 0.95em;
         }
 
-        .explanation {
-            color: #666;
-            font-style: italic;
-            font-size: 0.9em;
+        .phoneme-stream {
+            font-family: 'Noto Sans', 'Roboto', 'Arial', sans-serif;
+            font-size: 1.2em;
+            color: #0d47a1;
+            background: #bbdefb;
+            padding: 12px 16px;
+            border-radius: 6px;
+            word-spacing: 3px;
+            letter-spacing: 1px;
+            line-height: 1.8;
+            font-weight: 400;
         }
 
-        .hidden {
-            display: none !important;
+        /* New 3-source comparison styles */
+        .phoneme-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .phoneme-section h4 {
+            margin: 0 0 12px 0;
+            color: #333;
+            font-size: 0.95em;
+            font-weight: 600;
+        }
+
+        .phoneme-words {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            line-height: 2;
+        }
+
+        .phoneme-word {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 6px 10px;
+            background: white;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        .phoneme-word.error {
+            background: #ffebee;
+            border-color: #f44336;
+        }
+
+        .phoneme-word .ipa {
+            font-family: 'Noto Sans', 'Roboto', 'Arial', sans-serif;
+            font-size: 0.95em;
+            color: #666;
+            margin-top: 2px;
+            font-weight: 400;
+            letter-spacing: 0.5px;
+        }
+
+        .phoneme-word.error .ipa {
+            color: #c62828;
+            font-weight: 500;
+        }
+
+        .text-display {
+            font-size: 1.05em;
+            color: #555;
+            line-height: 1.6;
         }
     """
 

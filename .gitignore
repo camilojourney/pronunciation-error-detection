@@ -26,6 +26,7 @@ env/
 data/raw/
 data/interim/
 data/processed/
+data/results/
 artifacts/
 models/
 
@@ -35,3 +36,5 @@ data/
 
 # VS Code
 .vscode/
+.env
+

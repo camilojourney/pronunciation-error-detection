@@ -281,8 +281,21 @@ def process_l2arctic_sample(
 
 
 if __name__ == "__main__":
-    # Default: process 5 speakers with 50 utterances each
-    selected_speakers = ['ABA', 'BWC', 'ASI', 'HJK', 'EBVS']
+    # All 24 L2-ARCTIC speakers (4 per language)
+    selected_speakers = [
+        # Arabic
+        'ABA', 'SKA', 'YBAA', 'ZHAA',
+        # Mandarin
+        'BWC', 'LXC', 'NCC', 'TXHC',
+        # Hindi
+        'ASI', 'RRBI', 'SVBI', 'TNI',
+        # Korean
+        'HJK', 'HKK', 'YDCK', 'YKWK',
+        # Spanish
+        'EBVS', 'ERMS', 'MBMPS', 'NJS',
+        # Vietnamese
+        'HQTV', 'PNV', 'THV', 'TLV',
+    ]
 
     # You can also process all speakers by passing None
     # selected_speakers = None
