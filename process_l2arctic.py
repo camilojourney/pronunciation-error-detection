@@ -2,17 +2,15 @@
 Process L2-ARCTIC audio files with Whisper ASR and intelligibility analysis.
 
 This script:
-1. Loads the L2-ARCTIC manifest
+1. Discovers L2-ARCTIC files directly from the dataset directory
 2. Processes audio files with Whisper ASR
 3. Analyzes errors with intelligibility classification
 4. Saves results to CSV files
 """
 
-import json
 import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
-import sys
 
 from analysis_utils import (
     run_audio_pipeline,
@@ -21,63 +19,139 @@ from analysis_utils import (
 )
 
 
+def discover_l2arctic_files(
+    base_dir='l2arctic_release_v5',
+    selected_speakers=None,
+    sample_size=50,
+    annotated_only=False
+):
+    """
+    Discover L2-ARCTIC files directly from the dataset directory.
+
+    Args:
+        base_dir: Base directory of L2-ARCTIC dataset
+        selected_speakers: List of speaker IDs to process (None = all)
+        sample_size: Number of files per speaker
+        annotated_only: If True, only include files with ground truth annotations
+
+    Returns:
+        List of file dictionaries with paths and metadata
+    """
+    base_path = Path(base_dir)
+    speaker_lang = get_speaker_language_mapping()
+
+    # Load reference texts
+    prompts = {}
+    prompts_file = base_path / 'PROMPTS'
+    if prompts_file.exists():
+        with open(prompts_file) as f:
+            for line in f:
+                line = line.strip()
+                if line and '(' in line:
+                    parts = line.split('"')
+                    if len(parts) >= 2:
+                        file_id = line.split()[1]
+                        text = parts[1]
+                        prompts[file_id] = text
+
+    files = []
+    speaker_counts = {}
+
+    # Iterate through speaker directories
+    for speaker_id in sorted(speaker_lang.keys()):
+        if selected_speakers and speaker_id not in selected_speakers:
+            continue
+
+        speaker_path = base_path / speaker_id
+        if not speaker_path.exists():
+            continue
+
+        speaker_counts[speaker_id] = 0
+
+        # Determine which files to process
+        if annotated_only:
+            annotation_dir = speaker_path / 'annotation'
+            if not annotation_dir.exists():
+                continue
+            file_list = sorted(annotation_dir.glob('*.TextGrid'))
+            file_ids = [f.stem for f in file_list]
+        else:
+            wav_dir = speaker_path / 'wav'
+            if not wav_dir.exists():
+                continue
+            file_list = sorted(wav_dir.glob('*.wav'))
+            file_ids = [f.stem for f in file_list]
+
+        # Process files up to sample_size
+        for file_id in file_ids:
+            if speaker_counts[speaker_id] >= sample_size:
+                break
+
+            wav_path = speaker_path / 'wav' / f'{file_id}.wav'
+            if not wav_path.exists():
+                continue
+
+            files.append({
+                'speaker_id': speaker_id,
+                'native_language': speaker_lang[speaker_id],
+                'file_id': file_id,
+                'audio_path': str(wav_path),
+                'reference_text': prompts.get(file_id, '')
+            })
+            speaker_counts[speaker_id] += 1
+
+    return files, speaker_counts
+
+
 def process_l2arctic_sample(
-    manifest_path='data/processed/l2arctic_manifest.json',
+    base_dir='l2arctic_release_v5',
     selected_speakers=None,
     sample_size=50,
     model_size='base',
-    output_dir='data/results'
+    output_dir='data/results',
+    annotated_only=False
 ):
     """
     Process L2-ARCTIC audio files and analyze pronunciation errors.
 
     Args:
-        manifest_path: Path to L2-ARCTIC manifest JSON
+        base_dir: Base directory of L2-ARCTIC dataset
         selected_speakers: List of speaker IDs to process (None = all)
         sample_size: Number of files per speaker
         model_size: Whisper model size ('tiny', 'base', 'small', 'medium')
         output_dir: Directory to save results
+        annotated_only: If True, only process files with ground truth annotations
     """
 
     print("=" * 80)
     print("L2-ARCTIC PRONUNCIATION ERROR ANALYSIS")
     print("=" * 80)
 
-    # Load manifest
-    print(f"\n📁 Loading manifest from: {manifest_path}")
-    with open(manifest_path) as f:
-        manifest = json.load(f)
+    # Discover files
+    print(f"\n📁 Discovering files from: {base_dir}")
+    files, speaker_counts = discover_l2arctic_files(
+        base_dir=base_dir,
+        selected_speakers=selected_speakers,
+        sample_size=sample_size,
+        annotated_only=annotated_only
+    )
 
-    print(f"✓ Loaded {len(manifest):,} audio files")
+    print(f"✓ Found {len(files):,} audio files")
+
+    if not files:
+        print("❌ No files found to process")
+        return
 
     # Get speaker-language mapping
     speaker_lang = get_speaker_language_mapping()
 
-    # Filter by selected speakers if specified
-    if selected_speakers:
-        manifest = [item for item in manifest if item['speaker_id'] in selected_speakers]
-        print(f"✓ Filtered to {len(selected_speakers)} speakers: {', '.join(selected_speakers)}")
-
-    # Limit to sample_size per speaker
-    speaker_counts = {}
-    filtered_manifest = []
-
-    for item in manifest:
-        speaker_id = item['speaker_id']
-        if speaker_id not in speaker_counts:
-            speaker_counts[speaker_id] = 0
-
-        if speaker_counts[speaker_id] < sample_size:
-            filtered_manifest.append(item)
-            speaker_counts[speaker_id] += 1
-
-    manifest = filtered_manifest
-    total_files = len(manifest)
+    total_files = len(files)
 
     print(f"\n📊 Processing plan:")
     print(f"   Total files to process: {total_files}")
     print(f"   Sample size per speaker: {sample_size}")
     print(f"   Whisper model: {model_size}")
+    print(f"   Annotated only: {annotated_only}")
 
     for speaker_id, count in sorted(speaker_counts.items()):
         lang = speaker_lang.get(speaker_id, 'Unknown')
@@ -97,7 +171,7 @@ def process_l2arctic_sample(
 
     print(f"\n🎙️  Processing audio files...")
 
-    for item in tqdm(manifest, desc="Processing"):
+    for item in tqdm(files, desc="Processing"):
         try:
             # Run ASR pipeline
             result = run_audio_pipeline(
@@ -127,7 +201,7 @@ def process_l2arctic_sample(
                 'speaker_id': item['speaker_id'],
                 'native_language': item['native_language'],
                 'file_id': item['file_id'],
-                'audio_path': item['audio_path'],  # Add audio path for playback
+                'audio_path': item['audio_path'],
                 'reference': item['reference_text'],
                 'hypothesis': result.hyp,
                 'wer': result.wer,
@@ -204,37 +278,40 @@ def process_l2arctic_sample(
     print(f"\n📊 Extracting error patterns...")
     error_details = []
 
-    for item in manifest[:len(results)]:
-        result = run_audio_pipeline(
-            audio_path=item['audio_path'],
-            ref_text=item['reference_text'],
-            model_size=model_size
-        )
-        intel = analyze_intelligibility(result.error_analysis)
+    for item in files[:len(results)]:
+        try:
+            result = run_audio_pipeline(
+                audio_path=item['audio_path'],
+                ref_text=item['reference_text'],
+                model_size=model_size
+            )
+            intel = analyze_intelligibility(result.error_analysis)
 
-        # High impact errors
-        for ref, hyp, explanation in intel.high_impact_errors:
-            error_details.append({
-                'speaker_id': item['speaker_id'],
-                'native_language': item['native_language'],
-                'file_id': item['file_id'],
-                'error_type': 'HIGH_IMPACT',
-                'reference_word': ref,
-                'hypothesis_word': hyp,
-                'explanation': explanation
-            })
+            # High impact errors
+            for ref, hyp, explanation in intel.high_impact_errors:
+                error_details.append({
+                    'speaker_id': item['speaker_id'],
+                    'native_language': item['native_language'],
+                    'file_id': item['file_id'],
+                    'error_type': 'HIGH_IMPACT',
+                    'reference_word': ref,
+                    'hypothesis_word': hyp,
+                    'explanation': explanation
+                })
 
-        # Medium impact errors
-        for ref, hyp, explanation in intel.medium_impact_errors:
-            error_details.append({
-                'speaker_id': item['speaker_id'],
-                'native_language': item['native_language'],
-                'file_id': item['file_id'],
-                'error_type': 'MEDIUM_IMPACT',
-                'reference_word': ref,
-                'hypothesis_word': hyp,
-                'explanation': explanation
-            })
+            # Medium impact errors
+            for ref, hyp, explanation in intel.medium_impact_errors:
+                error_details.append({
+                    'speaker_id': item['speaker_id'],
+                    'native_language': item['native_language'],
+                    'file_id': item['file_id'],
+                    'error_type': 'MEDIUM_IMPACT',
+                    'reference_word': ref,
+                    'hypothesis_word': hyp,
+                    'explanation': explanation
+                })
+        except:
+            pass
 
     # Save error details
     if error_details:

@@ -43,7 +43,7 @@ mfa model download dictionary english_us_arpa
 
 - **L2-ARCTIC Release v5** (OpenSLR.org/96): 24 non-native English speakers, ~1,130 utterances each (~27k audio files)
 - CMU ARCTIC phonetically balanced sentences with transcripts and TextGrids
-- Located at `l2arctic_release_v5/`; manifest at `data/processed/l2arctic_manifest.json`
+- Located at `l2arctic_release_v5/` (files discovered directly from dataset directory)
 
 ## Architecture
 
@@ -221,12 +221,15 @@ intel = analyze_intelligibility(result.error_analysis)
 
 ## Roadmap and Current Status
 
-- ✅ Dataset ready (L2-ARCTIC downloaded, manifest built)
+- ✅ Dataset ready (L2-ARCTIC downloaded, direct file discovery)
 - ✅ Core NLP utilities (`analysis_utils.py`, alignment, WER/CER, Whisper integration)
-- ✅ Pipeline scripts (`process_l2arctic.py`, dashboard generation)
-- 🔜 Run larger ASR batches across more speakers and languages
-- 🔜 Deepen analysis: error distribution by speaker/native language, substitution patterns
-- 🔜 Update `nlp_presentation.qmd` with real results and visualizations
+- ✅ Evaluation framework (`ground_truth_parser.py`, `evaluation_metrics.py`)
+- ✅ Pipeline scripts (`process_l2arctic.py`, `run_evaluation.py`)
+- ✅ Interactive dashboards (pronunciation analysis, evaluation results)
+- ✅ Updated `nlp_presentation.qmd` with evaluation framework
+- 🔜 Run full evaluation on all 3,599 annotated files
+- 🔜 Hyperparameter tuning (Whisper model size, thresholds)
+- 🔜 Phoneme-level evaluation (integrate MFA/Wav2Vec2)
 - 🔜 Optional: add phoneme-level PER metrics and pattern clustering
 
 ## Deliverables for the NLP Project
