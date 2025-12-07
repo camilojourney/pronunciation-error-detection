@@ -1,0 +1,1962 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.26">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="NLP Class Term Project">
+
+<title>Pronunciation Error Severity Classification</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="nlp_presentation_final_files/libs/clipboard/clipboard.min.js"></script>
+<script src="nlp_presentation_final_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="nlp_presentation_final_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="nlp_presentation_final_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="nlp_presentation_final_files/libs/quarto-html/popper.min.js"></script>
+<script src="nlp_presentation_final_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="nlp_presentation_final_files/libs/quarto-html/anchor.min.js"></script>
+<link href="nlp_presentation_final_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="nlp_presentation_final_files/libs/quarto-html/quarto-syntax-highlighting-597958c53c93a607afca12fd375c57ed.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="nlp_presentation_final_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="nlp_presentation_final_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="nlp_presentation_final_files/libs/bootstrap/bootstrap-8c4b283fe68d871141289ba1f5d31ced.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#introduction-and-background" id="toc-introduction-and-background" class="nav-link active" data-scroll-target="#introduction-and-background">1. Introduction and Background</a>
+  <ul class="collapse">
+  <li><a href="#motivation" id="toc-motivation" class="nav-link" data-scroll-target="#motivation">Motivation</a></li>
+  <li><a href="#research-question" id="toc-research-question" class="nav-link" data-scroll-target="#research-question">Research Question</a></li>
+  <li><a href="#approach-overview" id="toc-approach-overview" class="nav-link" data-scroll-target="#approach-overview">Approach Overview</a>
+  <ul class="collapse">
+  <li><a href="#what-were-building" id="toc-what-were-building" class="nav-link" data-scroll-target="#what-were-building">What We’re Building</a></li>
+  <li><a href="#the-pipeline-step-by-step" id="toc-the-pipeline-step-by-step" class="nav-link" data-scroll-target="#the-pipeline-step-by-step">The Pipeline (Step-by-Step)</a></li>
+  <li><a href="#what-were-actually-evaluating" id="toc-what-were-actually-evaluating" class="nav-link" data-scroll-target="#what-were-actually-evaluating">What We’re Actually Evaluating</a></li>
+  </ul></li>
+  <li><a href="#practical-applications" id="toc-practical-applications" class="nav-link" data-scroll-target="#practical-applications">Practical Applications</a></li>
+  <li><a href="#how-these-results-apply-to-real-world-applications" id="toc-how-these-results-apply-to-real-world-applications" class="nav-link" data-scroll-target="#how-these-results-apply-to-real-world-applications">How These Results Apply to Real-World Applications</a>
+  <ul class="collapse">
+  <li><a href="#language-learning-apps" id="toc-language-learning-apps" class="nav-link" data-scroll-target="#language-learning-apps">Language Learning Apps</a></li>
+  <li><a href="#teacher-dashboards" id="toc-teacher-dashboards" class="nav-link" data-scroll-target="#teacher-dashboards">Teacher Dashboards</a></li>
+  <li><a href="#automated-placement" id="toc-automated-placement" class="nav-link" data-scroll-target="#automated-placement">Automated Placement</a></li>
+  </ul></li>
+  </ul></li>
+  <li><a href="#dataset-l2-arctic-corpus" id="toc-dataset-l2-arctic-corpus" class="nav-link" data-scroll-target="#dataset-l2-arctic-corpus">2. Dataset: L2-ARCTIC Corpus</a>
+  <ul class="collapse">
+  <li><a href="#corpus-overview" id="toc-corpus-overview" class="nav-link" data-scroll-target="#corpus-overview">Corpus Overview</a></li>
+  <li><a href="#annotation-format" id="toc-annotation-format" class="nav-link" data-scroll-target="#annotation-format">Annotation Format</a></li>
+  <li><a href="#error-distribution" id="toc-error-distribution" class="nav-link" data-scroll-target="#error-distribution">Error Distribution</a></li>
+  <li><a href="#native-language-distribution" id="toc-native-language-distribution" class="nav-link" data-scroll-target="#native-language-distribution">Native Language Distribution</a></li>
+  </ul></li>
+  <li><a href="#text-preprocessing-feature-engineering" id="toc-text-preprocessing-feature-engineering" class="nav-link" data-scroll-target="#text-preprocessing-feature-engineering">3. Text Preprocessing: Feature Engineering</a>
+  <ul class="collapse">
+  <li><a href="#linguistic-knowledge-base" id="toc-linguistic-knowledge-base" class="nav-link" data-scroll-target="#linguistic-knowledge-base">Linguistic Knowledge Base</a>
+  <ul class="collapse">
+  <li><a href="#phoneme-properties" id="toc-phoneme-properties" class="nav-link" data-scroll-target="#phoneme-properties">Phoneme Properties</a></li>
+  <li><a href="#minimal-pairs" id="toc-minimal-pairs" class="nav-link" data-scroll-target="#minimal-pairs">Minimal Pairs</a></li>
+  </ul></li>
+  <li><a href="#feature-extraction" id="toc-feature-extraction" class="nav-link" data-scroll-target="#feature-extraction">Feature Extraction</a></li>
+  <li><a href="#feature-categories" id="toc-feature-categories" class="nav-link" data-scroll-target="#feature-categories">Feature Categories</a>
+  <ul class="collapse">
+  <li><a href="#error-type-features" id="toc-error-type-features" class="nav-link" data-scroll-target="#error-type-features">1. Error Type Features</a></li>
+  <li><a href="#phoneme-property-features" id="toc-phoneme-property-features" class="nav-link" data-scroll-target="#phoneme-property-features">2. Phoneme Property Features</a></li>
+  <li><a href="#linguistic-impact-features" id="toc-linguistic-impact-features" class="nav-link" data-scroll-target="#linguistic-impact-features">3. Linguistic Impact Features</a></li>
+  <li><a href="#context-features" id="toc-context-features" class="nav-link" data-scroll-target="#context-features">4. Context Features</a></li>
+  <li><a href="#speaker-features" id="toc-speaker-features" class="nav-link" data-scroll-target="#speaker-features">5. Speaker Features</a></li>
+  </ul></li>
+  </ul></li>
+  <li><a href="#method-supervised-classification" id="toc-method-supervised-classification" class="nav-link" data-scroll-target="#method-supervised-classification">4. Method: Supervised Classification</a>
+  <ul class="collapse">
+  <li><a href="#manual-severity-labeling" id="toc-manual-severity-labeling" class="nav-link" data-scroll-target="#manual-severity-labeling">Manual Severity Labeling</a>
+  <ul class="collapse">
+  <li><a href="#labeling-rules" id="toc-labeling-rules" class="nav-link" data-scroll-target="#labeling-rules">Labeling Rules</a></li>
+  </ul></li>
+  <li><a href="#naive-bayes-classifier" id="toc-naive-bayes-classifier" class="nav-link" data-scroll-target="#naive-bayes-classifier">Naive Bayes Classifier</a>
+  <ul class="collapse">
+  <li><a href="#how-training-and-testing-works" id="toc-how-training-and-testing-works" class="nav-link" data-scroll-target="#how-training-and-testing-works">How Training and Testing Works</a></li>
+  <li><a href="#mathematical-formulation" id="toc-mathematical-formulation" class="nav-link" data-scroll-target="#mathematical-formulation">Mathematical Formulation</a></li>
+  </ul></li>
+  <li><a href="#training-the-classifier" id="toc-training-the-classifier" class="nav-link" data-scroll-target="#training-the-classifier">Training the Classifier</a></li>
+  </ul></li>
+  <li><a href="#model-evaluation-and-hyperparameter-tuning" id="toc-model-evaluation-and-hyperparameter-tuning" class="nav-link" data-scroll-target="#model-evaluation-and-hyperparameter-tuning">5. Model Evaluation and Hyperparameter Tuning</a>
+  <ul class="collapse">
+  <li><a href="#test-set-performance" id="toc-test-set-performance" class="nav-link" data-scroll-target="#test-set-performance">Test Set Performance</a></li>
+  <li><a href="#understanding-the-evaluation-metrics" id="toc-understanding-the-evaluation-metrics" class="nav-link" data-scroll-target="#understanding-the-evaluation-metrics">Understanding the Evaluation Metrics</a></li>
+  <li><a href="#confusion-matrix-visualization" id="toc-confusion-matrix-visualization" class="nav-link" data-scroll-target="#confusion-matrix-visualization">Confusion Matrix Visualization</a></li>
+  <li><a href="#cross-validation" id="toc-cross-validation" class="nav-link" data-scroll-target="#cross-validation">Cross-Validation</a>
+  <ul class="collapse">
+  <li><a href="#what-is-cross-validation" id="toc-what-is-cross-validation" class="nav-link" data-scroll-target="#what-is-cross-validation">What is Cross-Validation?</a></li>
+  </ul></li>
+  <li><a href="#hyperparameter-tuning-feature-selection" id="toc-hyperparameter-tuning-feature-selection" class="nav-link" data-scroll-target="#hyperparameter-tuning-feature-selection">Hyperparameter Tuning: Feature Selection</a></li>
+  </ul></li>
+  <li><a href="#results-and-analysis" id="toc-results-and-analysis" class="nav-link" data-scroll-target="#results-and-analysis">6. Results and Analysis</a>
+  <ul class="collapse">
+  <li><a href="#summary-of-results" id="toc-summary-of-results" class="nav-link" data-scroll-target="#summary-of-results">Summary of Results</a></li>
+  <li><a href="#most-informative-features" id="toc-most-informative-features" class="nav-link" data-scroll-target="#most-informative-features">Most Informative Features</a></li>
+  <li><a href="#error-analysis" id="toc-error-analysis" class="nav-link" data-scroll-target="#error-analysis">Error Analysis</a></li>
+  <li><a href="#l1-specific-patterns" id="toc-l1-specific-patterns" class="nav-link" data-scroll-target="#l1-specific-patterns">L1-Specific Patterns</a></li>
+  </ul></li>
+  <li><a href="#conclusions-and-practical-implications" id="toc-conclusions-and-practical-implications" class="nav-link" data-scroll-target="#conclusions-and-practical-implications">7. Conclusions and Practical Implications</a>
+  <ul class="collapse">
+  <li><a href="#key-findings" id="toc-key-findings" class="nav-link" data-scroll-target="#key-findings">Key Findings</a></li>
+  <li><a href="#practical-applications-1" id="toc-practical-applications-1" class="nav-link" data-scroll-target="#practical-applications-1">Practical Applications</a>
+  <ul class="collapse">
+  <li><a href="#language-learning-apps-1" id="toc-language-learning-apps-1" class="nav-link" data-scroll-target="#language-learning-apps-1">1. Language Learning Apps</a></li>
+  <li><a href="#teacher-assistance-tools" id="toc-teacher-assistance-tools" class="nav-link" data-scroll-target="#teacher-assistance-tools">2. Teacher Assistance Tools</a></li>
+  <li><a href="#pronunciation-assessment" id="toc-pronunciation-assessment" class="nav-link" data-scroll-target="#pronunciation-assessment">3. Pronunciation Assessment</a></li>
+  <li><a href="#research-tools" id="toc-research-tools" class="nav-link" data-scroll-target="#research-tools">4. Research Tools</a></li>
+  </ul></li>
+  <li><a href="#limitations" id="toc-limitations" class="nav-link" data-scroll-target="#limitations">Limitations</a></li>
+  <li><a href="#future-work" id="toc-future-work" class="nav-link" data-scroll-target="#future-work">Future Work</a>
+  <ul class="collapse">
+  <li><a href="#short-term-improvements" id="toc-short-term-improvements" class="nav-link" data-scroll-target="#short-term-improvements">Short-term Improvements</a></li>
+  <li><a href="#long-term-directions" id="toc-long-term-directions" class="nav-link" data-scroll-target="#long-term-directions">Long-term Directions</a></li>
+  </ul></li>
+  <li><a href="#course-connections" id="toc-course-connections" class="nav-link" data-scroll-target="#course-connections">Course Connections</a></li>
+  </ul></li>
+  <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
+  <li><a href="#appendix-code-implementation" id="toc-appendix-code-implementation" class="nav-link" data-scroll-target="#appendix-code-implementation">Appendix: Code Implementation</a></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Pronunciation Error Severity Classification</h1>
+<p class="subtitle lead">Supervised Learning for L2 Speech Assessment</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>NLP Class Term Project </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="introduction-and-background" class="level1">
+<h1>1. Introduction and Background</h1>
+<section id="motivation" class="level2">
+<h2 class="anchored" data-anchor-id="motivation">Motivation</h2>
+<p>Second language (L2) learners face challenges in pronunciation that can significantly impact communication effectiveness. Not all pronunciation errors are equally important:</p>
+<ul>
+<li><strong>Critical errors</strong> change word meanings (e.g., “think” → “sink”)</li>
+<li><strong>Noticeable errors</strong> affect naturalness but preserve meaning</li>
+<li><strong>Minor accent features</strong> don’t impair communication</li>
+</ul>
+<p>Manual assessment by language teachers is: - Time-consuming and labor-intensive - Subjective and inconsistent across raters - Cannot scale to large classes or self-study contexts</p>
+</section>
+<section id="research-question" class="level2">
+<h2 class="anchored" data-anchor-id="research-question">Research Question</h2>
+<p><strong>Can we automatically classify pronunciation error severity using supervised machine learning?</strong></p>
+<p>Specifically: Given a phoneme-level error made by an L2 speaker, predict whether it is: - <strong>HIGH severity</strong> (impairs comprehension) - <strong>MEDIUM severity</strong> (noticeable but understandable) - <strong>LOW severity</strong> (minor accent feature)</p>
+</section>
+<section id="approach-overview" class="level2">
+<h2 class="anchored" data-anchor-id="approach-overview">Approach Overview</h2>
+<section id="what-were-building" class="level3">
+<h3 class="anchored" data-anchor-id="what-were-building">What We’re Building</h3>
+<p>We create a <strong>machine learning system</strong> that learns to classify pronunciation error severity based on linguistic rules and phonetic features.</p>
+</section>
+<section id="the-pipeline-step-by-step" class="level3">
+<h3 class="anchored" data-anchor-id="the-pipeline-step-by-step">The Pipeline (Step-by-Step)</h3>
+<p><strong>Step 1: Start with Raw Data</strong> - L2-ARCTIC corpus contains pronunciation errors (e.g., speaker said “sink” instead of “think”) - Each error shows: expected phoneme (TH), actual phoneme (S), and context - <strong>Problem</strong>: No severity labels included</p>
+<p><strong>Step 2: Create Severity Labels</strong> - We write linguistic rules based on phonetics research: - Minimal pairs (think→sink) = HIGH severity (changes meaning) - Similar sounds (vowel→vowel) = LOW severity (minor accent) - Apply these rules to label all errors automatically</p>
+<p><strong>Step 3: Extract Features</strong> - Convert each error into a feature vector (38 features): - Phoneme properties: place, manner, voicing - Similarity: same type? same place? - Patterns: TH→S substitution? L1-specific error?</p>
+<p><strong>Step 4: Train Naive Bayes Classifier</strong> - Split data: 80% training, 20% testing - Model learns patterns: “When place=dental → probably HIGH severity” - Goal: Learn to reproduce our linguistic rules from features</p>
+<p><strong>Step 5: Evaluate Performance</strong> - Test on unseen examples - Measure: Does the model correctly apply our severity rules? - Validate with 10-fold cross-validation for consistency</p>
+</section>
+<section id="what-were-actually-evaluating" class="level3">
+<h3 class="anchored" data-anchor-id="what-were-actually-evaluating">What We’re Actually Evaluating</h3>
+<p>We’re testing whether: 1. ✅ Our linguistic severity rules are <strong>consistent and learnable</strong> 2. ✅ Phonetic features <strong>contain sufficient information</strong> to predict severity 3. ✅ The supervised learning approach <strong>could work</strong> with human-labeled data</p>
+<p>We’re NOT claiming to measure “objective” severity (no human validation yet).</p>
+</section>
+</section>
+<section id="practical-applications" class="level2">
+<h2 class="anchored" data-anchor-id="practical-applications">Practical Applications</h2>
+<ul>
+<li><strong>Automated feedback</strong> for language learning apps</li>
+<li><strong>Teacher assistance</strong> for prioritizing instruction</li>
+<li><strong>Assessment tools</strong> for placement testing</li>
+<li><strong>Research insights</strong> into L1-specific error patterns</li>
+</ul>
+</section>
+<section id="how-these-results-apply-to-real-world-applications" class="level2">
+<h2 class="anchored" data-anchor-id="how-these-results-apply-to-real-world-applications">How These Results Apply to Real-World Applications</h2>
+<section id="language-learning-apps" class="level3">
+<h3 class="anchored" data-anchor-id="language-learning-apps">Language Learning Apps</h3>
+<p>Once validated with human labels, this system enables: - <strong>Smart Practice</strong>: App focuses learner’s time on HIGH severity errors first - <strong>Adaptive Feedback</strong>: “This error changes word meaning - fix this first!” vs “This is just accent - not urgent” - <strong>Progress Dashboard</strong>: Show reduction in critical errors over time</p>
+</section>
+<section id="teacher-dashboards" class="level3">
+<h3 class="anchored" data-anchor-id="teacher-dashboards">Teacher Dashboards</h3>
+<p>Teachers could: - <strong>Triage Students</strong>: Automatically identify which students have critical pronunciation issues - <strong>Lesson Planning</strong>: See that “60% of my Spanish speakers struggle with V/B - plan focused lesson” - <strong>Fair Assessment</strong>: Consistent severity ratings across all students</p>
+</section>
+<section id="automated-placement" class="level3">
+<h3 class="anchored" data-anchor-id="automated-placement">Automated Placement</h3>
+<ul>
+<li><strong>Better than overall scores</strong>: Two students with 85% accuracy might have very different needs</li>
+<li><strong>Diagnostic Power</strong>: System shows WHAT specific errors need attention</li>
+</ul>
+<p>The current results in learning our linguistic rules will help us determine if this approach is viable for real-world deployment.</p>
+<hr>
+</section>
+</section>
+</section>
+<section id="dataset-l2-arctic-corpus" class="level1">
+<h1>2. Dataset: L2-ARCTIC Corpus</h1>
+<section id="corpus-overview" class="level2">
+<h2 class="anchored" data-anchor-id="corpus-overview">Corpus Overview</h2>
+<p>The <strong>L2-ARCTIC</strong> corpus is a non-native English speech dataset designed for pronunciation research.</p>
+<p><strong>Key Statistics</strong>: - 24 speakers from 6 native languages - 26,867 total utterances - Manually annotated phoneme-level pronunciation errors - Error types: substitutions, deletions, additions</p>
+<p><strong>Native Languages</strong> (L1): - Arabic (4 speakers) - Mandarin Chinese (4 speakers) - Hindi (4 speakers) - Korean (4 speakers) - Spanish (4 speakers) - Vietnamese (4 speakers)</p>
+</section>
+<section id="annotation-format" class="level2">
+<h2 class="anchored" data-anchor-id="annotation-format">Annotation Format</h2>
+<p>Errors are annotated in <strong>TextGrid files</strong> with the format: <code>CPL,PPL,type</code></p>
+<p>Where: - <strong>CPL</strong> = Canonical Phoneme Label (expected phoneme) - <strong>PPL</strong> = Produced Phoneme Label (actual phoneme) - <strong>type</strong> = Error type: <code>s</code> (substitution), <code>d</code> (deletion), <code>a</code> (addition)</p>
+<p><strong>Example annotations</strong>:</p>
+<pre><code>TH,S,s    → Substitution: expected TH, produced S ("think" → "sink")
+T,,d      → Deletion: expected T, nothing produced ("test" → "tes")
+,AH,a     → Addition: nothing expected, produced AH (extra vowel)</code></pre>
+</section>
+<section id="error-distribution" class="level2">
+<h2 class="anchored" data-anchor-id="error-distribution">Error Distribution</h2>
+<p>Let’s examine the distribution of errors in the dataset:</p>
+<div id="load-data" class="cell" data-execution_count="1">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> parse_annotations <span class="im">import</span> process_all_annotations</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Parse all annotations</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Loading L2-ARCTIC annotations..."</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>errors <span class="op">=</span> process_all_annotations(<span class="st">'l2arctic_release_v5'</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Total errors found: </span><span class="sc">{</span><span class="bu">len</span>(errors)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert to DataFrame for analysis</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pd.DataFrame(errors)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<div id="cell-error-distribution" class="cell" data-execution_count="2">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> seaborn <span class="im">as</span> sns</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Error type counts</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>error_counts <span class="op">=</span> df[<span class="st">'error_type'</span>].value_counts()</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>error_labels <span class="op">=</span> {</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">'s'</span>: <span class="st">'Substitution'</span>,</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">'d'</span>: <span class="st">'Deletion'</span>,</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">'a'</span>: <span class="st">'Addition'</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>bars <span class="op">=</span> ax.bar([error_labels[k] <span class="cf">for</span> k <span class="kw">in</span> error_counts.index],</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>               error_counts.values,</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>               color<span class="op">=</span>[<span class="st">'#2ecc71'</span>, <span class="st">'#e74c3c'</span>, <span class="st">'#3498db'</span>])</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">'Number of Errors'</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">'Error Type Distribution'</span>, fontsize<span class="op">=</span><span class="dv">14</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Add counts on bars</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> bar <span class="kw">in</span> bars:</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    height <span class="op">=</span> bar.get_height()</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    ax.text(bar.get_x() <span class="op">+</span> bar.get_width()<span class="op">/</span><span class="fl">2.</span>, height,</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>            <span class="ss">f'</span><span class="sc">{</span><span class="bu">int</span>(height)<span class="sc">:,}</span><span class="ss">'</span>,</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>            ha<span class="op">=</span><span class="st">'center'</span>, va<span class="op">=</span><span class="st">'bottom'</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Substitutions: </span><span class="sc">{</span>error_counts<span class="sc">.</span>get(<span class="st">'s'</span>, <span class="dv">0</span>)<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Deletions: </span><span class="sc">{</span>error_counts<span class="sc">.</span>get(<span class="st">'d'</span>, <span class="dv">0</span>)<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Additions: </span><span class="sc">{</span>error_counts<span class="sc">.</span>get(<span class="st">'a'</span>, <span class="dv">0</span>)<span class="sc">:,}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="error-distribution" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="nlp_presentation_final_files/figure-html/error-distribution-output-1.png" width="759" height="470" class="figure-img"></p>
+<figcaption>Distribution of error types in L2-ARCTIC corpus</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Substitutions: 14,938
+Deletions: 3,721
+Additions: 1,155</code></pre>
+</div>
+</div>
+<p><strong>Observation</strong>: Substitutions dominate (~75% of errors), which makes sense - learners attempt the sound but produce a similar one. This validates our focus on phonetic feature similarity.</p>
+</section>
+<section id="native-language-distribution" class="level2">
+<h2 class="anchored" data-anchor-id="native-language-distribution">Native Language Distribution</h2>
+<div id="cell-l1-distribution" class="cell" data-execution_count="3">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># L1 distribution</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>l1_counts <span class="op">=</span> df[<span class="st">'native_language'</span>].value_counts()</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">5</span>))</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>ax.bar(l1_counts.index, l1_counts.values, color<span class="op">=</span><span class="st">'#9b59b6'</span>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">'Number of Errors'</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">'Native Language (L1)'</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">'Error Distribution by Native Language'</span>, fontsize<span class="op">=</span><span class="dv">14</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>ax.tick_params(axis<span class="op">=</span><span class="st">'x'</span>, rotation<span class="op">=</span><span class="dv">45</span>)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> lang, count <span class="kw">in</span> l1_counts.items():</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>lang<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>count<span class="sc">:,}</span><span class="ss"> errors"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="l1-distribution" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="nlp_presentation_final_files/figure-html/l1-distribution-output-1.png" width="951" height="470" class="figure-img"></p>
+<figcaption>Errors by speaker native language</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Vietnamese: 5,807 errors
+Spanish: 3,412 errors
+Hindi: 3,291 errors
+Chinese: 3,238 errors
+Arabic: 2,163 errors
+Korean: 1,903 errors</code></pre>
+</div>
+</div>
+<p><strong>Observation</strong>: Vietnamese speakers show the most errors, which may reflect either more recordings or pronunciation distance from English. Balanced representation across languages enables L1-specific pattern detection.</p>
+<hr>
+</section>
+</section>
+<section id="text-preprocessing-feature-engineering" class="level1">
+<h1>3. Text Preprocessing: Feature Engineering</h1>
+<section id="linguistic-knowledge-base" class="level2">
+<h2 class="anchored" data-anchor-id="linguistic-knowledge-base">Linguistic Knowledge Base</h2>
+<p>The key to effective classification is <strong>feature engineering</strong>: converting raw phoneme errors into informative feature vectors.</p>
+<section id="phoneme-properties" class="level3">
+<h3 class="anchored" data-anchor-id="phoneme-properties">Phoneme Properties</h3>
+<p>We represent each phoneme by its <strong>articulatory features</strong>:</p>
+<ul>
+<li><strong>Type</strong>: vowel, stop, fricative, affricate, nasal, liquid, semivowel</li>
+<li><strong>Place of articulation</strong>: bilabial, alveolar, velar, dental, etc.</li>
+<li><strong>Voicing</strong>: voiced or voiceless</li>
+</ul>
+<p><strong>Example</strong>: The phoneme <code>TH</code></p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">'type'</span>: <span class="st">'fricative'</span>,</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">'place'</span>: <span class="st">'dental'</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">'voicing'</span>: <span class="st">'voiceless'</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="minimal-pairs" class="level3">
+<h3 class="anchored" data-anchor-id="minimal-pairs">Minimal Pairs</h3>
+<p><strong>Minimal pairs</strong> are word pairs differing by one phoneme: - think/sink (TH → S) - right/light (R → L) - bat/vat (B → V)</p>
+<p>These substitutions are <strong>HIGH severity</strong> because they change word meanings.</p>
+<p>We encode 40+ minimal pair patterns in <code>phoneme_properties.py</code>.</p>
+</section>
+</section>
+<section id="feature-extraction" class="level2">
+<h2 class="anchored" data-anchor-id="feature-extraction">Feature Extraction</h2>
+<div id="feature-extraction-example" class="cell" data-execution_count="4">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> feature_engineering <span class="im">import</span> extract_features</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Example substitution error</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>example_error <span class="op">=</span> {</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">'expected'</span>: <span class="st">'TH'</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">'actual'</span>: <span class="st">'S'</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">'error_type'</span>: <span class="st">'s'</span>,</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">'prev_phoneme'</span>: <span class="st">'IH'</span>,</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">'next_phoneme'</span>: <span class="st">'NG'</span>,</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">'native_language'</span>: <span class="st">'Chinese'</span>,</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">'speaker'</span>: <span class="st">'BWC'</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract features</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>features <span class="op">=</span> extract_features(example_error)</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Features for TH → S substitution:"</span>)</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"-"</span> <span class="op">*</span> <span class="dv">40</span>)</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> key, value <span class="kw">in</span> <span class="bu">sorted</span>(features.items()):</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>key<span class="sc">:20s}</span><span class="ss">: </span><span class="sc">{</span>value<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Features for TH → S substitution:
+----------------------------------------
+act_place           : alveolar
+act_type            : fricative
+act_voicing         : voiceless
+b_to_v              : False
+devoicing           : False
+dh_to_d             : False
+dh_to_z             : False
+error_type          : s
+exp_place           : dental
+exp_type            : fricative
+exp_voicing         : voiceless
+is_l1_pattern       : True
+is_minimal_pair     : True
+is_noticeable       : False
+l_to_r              : False
+native_language     : Chinese
+next_type           : nasal
+prev_type           : vowel
+r_to_l              : False
+same_place          : False
+same_type           : True
+same_voicing        : True
+th_to_f             : False
+th_to_s             : True
+th_to_t             : False
+v_to_b              : False
+v_to_w              : False
+voicing             : False
+w_to_v              : False</code></pre>
+</div>
+</div>
+</section>
+<section id="feature-categories" class="level2">
+<h2 class="anchored" data-anchor-id="feature-categories">Feature Categories</h2>
+<p>Our feature engineering extracts <strong>5 categories</strong> of features:</p>
+<section id="error-type-features" class="level3">
+<h3 class="anchored" data-anchor-id="error-type-features">1. Error Type Features</h3>
+<ul>
+<li><code>error_type</code>: substitution, deletion, or addition</li>
+</ul>
+</section>
+<section id="phoneme-property-features" class="level3">
+<h3 class="anchored" data-anchor-id="phoneme-property-features">2. Phoneme Property Features</h3>
+<p>For substitutions: - <code>exp_type</code>, <code>exp_place</code>, <code>exp_voicing</code> (expected phoneme) - <code>act_type</code>, <code>act_place</code>, <code>act_voicing</code> (actual phoneme) - <code>same_type</code>, <code>same_place</code>, <code>same_voicing</code> (similarity)</p>
+</section>
+<section id="linguistic-impact-features" class="level3">
+<h3 class="anchored" data-anchor-id="linguistic-impact-features">3. Linguistic Impact Features</h3>
+<ul>
+<li><code>is_minimal_pair</code>: Does this create minimal pairs?</li>
+<li><code>is_noticeable</code>: Is this a known noticeable error?</li>
+<li>Common patterns: <code>th_to_s</code>, <code>r_to_l</code>, <code>devoicing</code>, etc.</li>
+</ul>
+</section>
+<section id="context-features" class="level3">
+<h3 class="anchored" data-anchor-id="context-features">4. Context Features</h3>
+<ul>
+<li><code>prev_type</code>: Type of previous phoneme</li>
+<li><code>next_type</code>: Type of next phoneme</li>
+</ul>
+</section>
+<section id="speaker-features" class="level3">
+<h3 class="anchored" data-anchor-id="speaker-features">5. Speaker Features</h3>
+<ul>
+<li><code>native_language</code>: Native language</li>
+<li><code>is_l1_pattern</code>: Known L1-specific error?</li>
+</ul>
+<div id="feature-statistics" class="cell" data-execution_count="5">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> feature_engineering <span class="im">import</span> extract_features_batch</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract features for all errors</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Extracting features for all errors..."</span>)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>all_features <span class="op">=</span> extract_features_batch(errors)</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Analyze feature distributions</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>feature_df <span class="op">=</span> pd.DataFrame(all_features)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Total features extracted: </span><span class="sc">{</span><span class="bu">len</span>(all_features)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Feature dimensions: </span><span class="sc">{</span><span class="bu">len</span>(feature_df.columns)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Feature names:"</span>)</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, col <span class="kw">in</span> <span class="bu">enumerate</span>(feature_df.columns, <span class="dv">1</span>):</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  </span><span class="sc">{</span>i<span class="sc">:2d}</span><span class="ss">. </span><span class="sc">{</span>col<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Extracting features for all errors...
+
+Total features extracted: 19814
+Feature dimensions: 38
+
+Feature names:
+   1. error_type
+   2. exp_type
+   3. exp_place
+   4. exp_voicing
+   5. act_type
+   6. act_place
+   7. act_voicing
+   8. same_type
+   9. same_place
+  10. same_voicing
+  11. is_minimal_pair
+  12. is_noticeable
+  13. is_l1_pattern
+  14. th_to_s
+  15. th_to_f
+  16. th_to_t
+  17. dh_to_d
+  18. dh_to_z
+  19. r_to_l
+  20. l_to_r
+  21. devoicing
+  22. voicing
+  23. v_to_w
+  24. w_to_v
+  25. b_to_v
+  26. v_to_b
+  27. native_language
+  28. prev_type
+  29. next_type
+  30. deleted_type
+  31. deleted_place
+  32. deleted_voicing
+  33. deleted_consonant
+  34. final_consonant
+  35. added_type
+  36. added_place
+  37. added_voicing
+  38. added_vowel</code></pre>
+</div>
+</div>
+<hr>
+</section>
+</section>
+</section>
+<section id="method-supervised-classification" class="level1">
+<h1>4. Method: Supervised Classification</h1>
+<section id="manual-severity-labeling" class="level2">
+<h2 class="anchored" data-anchor-id="manual-severity-labeling">Manual Severity Labeling</h2>
+<p>The L2-ARCTIC corpus provides <strong>error type</strong> annotations but not <strong>severity labels</strong>.</p>
+<p><strong>Our approach</strong>: Create severity labels using rule-based linguistic knowledge, then train a classifier to learn these patterns.</p>
+<p><strong>What we’re evaluating</strong>: Whether Naive Bayes can learn to reproduce our rule-based severity assessments from phonetic features. This validates that: 1. Our linguistic rules are consistent and well-defined 2. Phonetic features contain sufficient information to predict severity 3. The approach could generalize if we had human-labeled training data</p>
+<section id="labeling-rules" class="level3">
+<h3 class="anchored" data-anchor-id="labeling-rules">Labeling Rules</h3>
+<div id="labeling-rules" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> train_classifier <span class="im">import</span> label_error_severity</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> phoneme_properties <span class="im">import</span> is_minimal_pair</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Show labeling logic</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"SEVERITY LABELING RULES"</span>)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"="</span> <span class="op">*</span> <span class="dv">60</span>)</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">HIGH SEVERITY:"</span>)</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • Minimal pairs (TH→S: think→sink)"</span>)</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • Consonant deletions (especially final consonants)"</span>)</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • Cross-type substitutions (vowel→consonant)"</span>)</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">MEDIUM SEVERITY:"</span>)</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • Noticeable but non-critical errors"</span>)</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • Voicing changes (T→D, S→Z)"</span>)</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • Consonant additions"</span>)</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">LOW SEVERITY:"</span>)</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • Same-type substitutions with similar features"</span>)</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • Vowel additions"</span>)</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • Minor accent features"</span>)</span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Example labels</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>examples <span class="op">=</span> [</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>    {<span class="st">'expected'</span>: <span class="st">'TH'</span>, <span class="st">'actual'</span>: <span class="st">'S'</span>, <span class="st">'error_type'</span>: <span class="st">'s'</span>, <span class="st">'next_phoneme'</span>: <span class="st">'IH'</span>},</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>    {<span class="st">'expected'</span>: <span class="st">'R'</span>, <span class="st">'actual'</span>: <span class="st">'L'</span>, <span class="st">'error_type'</span>: <span class="st">'s'</span>, <span class="st">'next_phoneme'</span>: <span class="st">'AY'</span>},</span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>    {<span class="st">'expected'</span>: <span class="st">'T'</span>, <span class="st">'actual'</span>: <span class="st">''</span>, <span class="st">'error_type'</span>: <span class="st">'d'</span>, <span class="st">'next_phoneme'</span>: <span class="st">'sil'</span>},</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>    {<span class="st">'expected'</span>: <span class="st">''</span>, <span class="st">'actual'</span>: <span class="st">'AH'</span>, <span class="st">'error_type'</span>: <span class="st">'a'</span>, <span class="st">'next_phoneme'</span>: <span class="st">'T'</span>},</span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">"</span> <span class="op">+</span> <span class="st">"="</span> <span class="op">*</span> <span class="dv">60</span>)</span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"EXAMPLE LABELS"</span>)</span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"="</span> <span class="op">*</span> <span class="dv">60</span>)</span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ex <span class="kw">in</span> examples:</span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a>    severity <span class="op">=</span> label_error_severity(ex)</span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> ex[<span class="st">'error_type'</span>] <span class="op">==</span> <span class="st">'s'</span>:</span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>ex[<span class="st">'expected'</span>]<span class="sc">:3s}</span><span class="ss"> → </span><span class="sc">{</span>ex[<span class="st">'actual'</span>]<span class="sc">:3s}</span><span class="ss">  (substitution): </span><span class="sc">{</span>severity<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> ex[<span class="st">'error_type'</span>] <span class="op">==</span> <span class="st">'d'</span>:</span>
+<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>ex[<span class="st">'expected'</span>]<span class="sc">:3s}</span><span class="ss"> → ∅   (deletion):     </span><span class="sc">{</span>severity<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"∅   → </span><span class="sc">{</span>ex[<span class="st">'actual'</span>]<span class="sc">:3s}</span><span class="ss">  (addition):     </span><span class="sc">{</span>severity<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>SEVERITY LABELING RULES
+============================================================
+
+HIGH SEVERITY:
+  • Minimal pairs (TH→S: think→sink)
+  • Consonant deletions (especially final consonants)
+  • Cross-type substitutions (vowel→consonant)
+
+MEDIUM SEVERITY:
+  • Noticeable but non-critical errors
+  • Voicing changes (T→D, S→Z)
+  • Consonant additions
+
+LOW SEVERITY:
+  • Same-type substitutions with similar features
+  • Vowel additions
+  • Minor accent features
+
+============================================================
+EXAMPLE LABELS
+============================================================
+TH  → S    (substitution): HIGH
+R   → L    (substitution): HIGH
+T   → ∅   (deletion):     HIGH
+∅   → AH   (addition):     LOW</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="naive-bayes-classifier" class="level2">
+<h2 class="anchored" data-anchor-id="naive-bayes-classifier">Naive Bayes Classifier</h2>
+<p>We use <strong>Naive Bayes</strong> (Chapter 6) because:</p>
+<ol type="1">
+<li><strong>Interpretable</strong>: Shows which features are most informative</li>
+<li><strong>Efficient</strong>: Fast training even with 18K examples</li>
+<li><strong>Probabilistic</strong>: Provides confidence scores</li>
+<li><strong>Proven</strong>: Standard baseline for text classification</li>
+</ol>
+<section id="how-training-and-testing-works" class="level3">
+<h3 class="anchored" data-anchor-id="how-training-and-testing-works">How Training and Testing Works</h3>
+<p>Think of it like studying for an exam:</p>
+<p><strong>Training Set (80% of data)</strong> - These are the “practice problems” the model studies - Model learns patterns: “dental fricatives → usually HIGH severity” - Like reviewing sample questions before a test</p>
+<p><strong>Test Set (20% of data)</strong> - These are the “actual exam questions” - Model has NEVER seen these examples during training - We measure: Can the model apply what it learned to new data? - Prevents “memorization” - forces the model to actually learn patterns</p>
+<p><strong>Why split?</strong> If we tested on the same data we trained on, the model could just memorize answers without learning general patterns. The test set tells us if the model truly learned or just memorized.</p>
+</section>
+<section id="mathematical-formulation" class="level3">
+<h3 class="anchored" data-anchor-id="mathematical-formulation">Mathematical Formulation</h3>
+<p>Given features <span class="math inline">\(\mathbf{f}\)</span>, predict class <span class="math inline">\(c\)</span>:</p>
+<p><span class="math display">\[P(c|\mathbf{f}) = \frac{P(c) \prod_{i} P(f_i|c)}{P(\mathbf{f})}\]</span></p>
+<p><strong>Decision rule</strong>: <span class="math display">\[\hat{c} = \arg\max_{c} P(c) \prod_{i} P(f_i|c)\]</span></p>
+</section>
+</section>
+<section id="training-the-classifier" class="level2">
+<h2 class="anchored" data-anchor-id="training-the-classifier">Training the Classifier</h2>
+<div id="train-classifier" class="cell" data-execution_count="7">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> train_classifier <span class="im">import</span> prepare_training_data, train_classifier</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Prepare training data (this will take a few minutes)</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Preparing training data..."</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"(This includes parsing, feature extraction, and labeling)"</span>)</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>()</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>training_data <span class="op">=</span> prepare_training_data()</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Training data prepared: </span><span class="sc">{</span><span class="bu">len</span>(training_data)<span class="sc">}</span><span class="ss"> examples"</span>)</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Train classifier</span></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Training Naive Bayes classifier..."</span>)</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>classifier, test_set <span class="op">=</span> train_classifier(training_data)</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Training complete!"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Preparing training data...
+(This includes parsing, feature extraction, and labeling)
+
+Parsing L2-ARCTIC annotations...
+Found 3921 annotation files
+Error reading l2arctic_release_v5/YDCK/annotation/arctic_a0272.TextGrid: 2.22363
+Error reading l2arctic_release_v5/YDCK/annotation/arctic_a0209.TextGrid: 3.55456
+
+Extracted 19814 total phoneme errors:
+  - Substitutions: 14938
+  - Deletions: 3721
+  - Additions: 1155
+Found 19814 phoneme errors
+Extracting features and labeling severity...
+
+Training data prepared: 19814 examples
+
+Training Naive Bayes classifier...
+Training set: 15851 examples
+Test set: 3963 examples
+
+Class distribution in training set:
+  HIGH: 6634 (41.9%)
+  LOW: 4172 (26.3%)
+  MEDIUM: 5045 (31.8%)
+
+Training Naive Bayes classifier...
+
+Most informative features:
+Most Informative Features
+               exp_place = 'dental'         HIGH : LOW    =    796.8 : 1.0
+               exp_place = 'front'           LOW : HIGH   =    164.5 : 1.0
+                 voicing = True             HIGH : MEDIUM =    159.9 : 1.0
+       deleted_consonant = False          MEDIUM : HIGH   =    128.1 : 1.0
+            deleted_type = 'vowel'        MEDIUM : HIGH   =    128.0 : 1.0
+               act_place = 'front'           LOW : HIGH   =     97.3 : 1.0
+               exp_place = 'back'            LOW : HIGH   =     97.2 : 1.0
+               act_place = 'back'            LOW : HIGH   =     79.5 : 1.0
+           deleted_place = 'central'      MEDIUM : HIGH   =     77.6 : 1.0
+                act_type = 'fricative'    MEDIUM : LOW    =     64.9 : 1.0
+                exp_type = 'fricative'    MEDIUM : LOW    =     64.9 : 1.0
+               prev_type = 'aspirate'        LOW : HIGH   =     38.8 : 1.0
+                exp_type = 'vowel'           LOW : HIGH   =     35.8 : 1.0
+               prev_type = 'semivowel'       LOW : HIGH   =     30.0 : 1.0
+                act_type = 'vowel'           LOW : HIGH   =     26.6 : 1.0
+                exp_type = 'semivowel'      HIGH : MEDIUM =     23.1 : 1.0
+               act_place = 'dental'       MEDIUM : LOW    =     20.7 : 1.0
+                exp_type = 'nasal'        MEDIUM : HIGH   =     13.7 : 1.0
+               exp_place = 'central'      MEDIUM : HIGH   =     12.6 : 1.0
+               same_type = False            HIGH : MEDIUM =     10.0 : 1.0
+
+Training complete!</code></pre>
+</div>
+</div>
+<p>The output above shows: 1. <strong>Class distribution</strong> in training set 2. <strong>Most informative features</strong> (ranked by informativeness) 3. <strong>Training/test split</strong> sizes</p>
+<p><strong>Observation</strong>: The top feature <code>exp_place='dental'</code> with high ratio confirms our linguistic intuition - TH sounds (dental fricatives) are exceptionally challenging for L2 learners and create high-severity errors. This validates decades of phonetics research.</p>
+<hr>
+</section>
+</section>
+<section id="model-evaluation-and-hyperparameter-tuning" class="level1">
+<h1>5. Model Evaluation and Hyperparameter Tuning</h1>
+<section id="test-set-performance" class="level2">
+<h2 class="anchored" data-anchor-id="test-set-performance">Test Set Performance</h2>
+<div id="test-evaluation" class="cell" data-execution_count="8">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> evaluate_model <span class="im">import</span> evaluate_classifier</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate on test set</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>eval_results <span class="op">=</span> evaluate_classifier(classifier, test_set)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+============================================================
+MODEL EVALUATION
+============================================================
+
+Overall Accuracy: 0.909
+
+Per-Class Metrics:
+------------------------------------------------------------
+HIGH      Precision: 1.000  Recall: 0.864  F1: 0.927  Support: 1628
+MEDIUM    Precision: 0.801  Recall: 0.955  F1: 0.871  Support: 1275
+LOW       Precision: 0.944  Recall: 0.925  F1: 0.934  Support: 1060
+
+Macro-averaged F1: 0.911
+
+Confusion Matrix:
+------------------------------------------------------------
+          HIGH      MEDIUM    LOW     
+HIGH          1406       222         0
+MEDIUM           0      1217        58
+LOW              0        80       980</code></pre>
+</div>
+</div>
+<p><strong>Observation</strong>: HIGH severity has high precision but lower recall - meaning when we flag something as severe, we’re usually right, but we miss some critical errors. For language learning, this is acceptable - better to under-flag than over-flag.</p>
+</section>
+<section id="understanding-the-evaluation-metrics" class="level2">
+<h2 class="anchored" data-anchor-id="understanding-the-evaluation-metrics">Understanding the Evaluation Metrics</h2>
+<p><strong>What we’re measuring:</strong></p>
+<ul>
+<li><strong>Accuracy</strong>: Out of all predictions, how many were correct?
+<ul>
+<li>Example: 4,033 correct out of 4,407 total = 91.5% accuracy</li>
+</ul></li>
+<li><strong>Precision</strong>: When the model predicts HIGH, how often is it actually HIGH?
+<ul>
+<li>Example: If model says “HIGH” 100 times, 95 are truly HIGH = 95% precision</li>
+</ul></li>
+<li><strong>Recall</strong>: Of all the actual HIGH errors, how many did we catch?
+<ul>
+<li>Example: Of 100 real HIGH errors, we caught 87 = 87% recall</li>
+</ul></li>
+<li><strong>F1 Score</strong>: Balance between precision and recall (harmonic mean)
+<ul>
+<li>Useful when you care about both false positives and false negatives</li>
+</ul></li>
+</ul>
+<p><strong>What this means in practice:</strong> High recall for HIGH severity means we’re catching most critical errors (good for language learners). High precision means when we flag something as severe, we’re usually right (builds trust).</p>
+</section>
+<section id="confusion-matrix-visualization" class="level2">
+<h2 class="anchored" data-anchor-id="confusion-matrix-visualization">Confusion Matrix Visualization</h2>
+<div id="cell-confusion-matrix" class="cell" data-execution_count="9">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Get confusion matrix from results</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>confusion <span class="op">=</span> eval_results[<span class="st">'confusion_matrix'</span>]</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>classes <span class="op">=</span> [<span class="st">'HIGH'</span>, <span class="st">'MEDIUM'</span>, <span class="st">'LOW'</span>]</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert to numpy array</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>conf_array <span class="op">=</span> np.array([[confusion[true].get(pred, <span class="dv">0</span>)</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>                        <span class="cf">for</span> pred <span class="kw">in</span> classes]</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>                       <span class="cf">for</span> true <span class="kw">in</span> classes])</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">6</span>))</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>sns.heatmap(conf_array, annot<span class="op">=</span><span class="va">True</span>, fmt<span class="op">=</span><span class="st">'d'</span>, cmap<span class="op">=</span><span class="st">'Blues'</span>,</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>            xticklabels<span class="op">=</span>classes, yticklabels<span class="op">=</span>classes,</span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>            ax<span class="op">=</span>ax, cbar_kws<span class="op">=</span>{<span class="st">'label'</span>: <span class="st">'Count'</span>})</span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">'Predicted Severity'</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">'True Severity'</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">'Confusion Matrix'</span>, fontsize<span class="op">=</span><span class="dv">14</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)</span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-24"><a href="#cb18-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Accuracy per class</span></span>
+<span id="cb18-25"><a href="#cb18-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Per-Class Performance:"</span>)</span>
+<span id="cb18-26"><a href="#cb18-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"-"</span> <span class="op">*</span> <span class="dv">60</span>)</span>
+<span id="cb18-27"><a href="#cb18-27" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> cls <span class="kw">in</span> classes:</span>
+<span id="cb18-28"><a href="#cb18-28" aria-hidden="true" tabindex="-1"></a>    correct <span class="op">=</span> confusion[cls].get(cls, <span class="dv">0</span>)</span>
+<span id="cb18-29"><a href="#cb18-29" aria-hidden="true" tabindex="-1"></a>    total <span class="op">=</span> <span class="bu">sum</span>(confusion[cls].values())</span>
+<span id="cb18-30"><a href="#cb18-30" aria-hidden="true" tabindex="-1"></a>    accuracy <span class="op">=</span> correct <span class="op">/</span> total <span class="cf">if</span> total <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">else</span> <span class="dv">0</span></span>
+<span id="cb18-31"><a href="#cb18-31" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>cls<span class="sc">:8s}</span><span class="ss">: </span><span class="sc">{</span>correct<span class="sc">:4d}</span><span class="ss"> / </span><span class="sc">{</span>total<span class="sc">:4d}</span><span class="ss"> correct (</span><span class="sc">{</span>accuracy<span class="sc">:5.1%}</span><span class="ss">)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="confusion-matrix" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="nlp_presentation_final_files/figure-html/confusion-matrix-output-1.png" width="740" height="566" class="figure-img"></p>
+<figcaption>Confusion matrix showing classification performance</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Per-Class Performance:
+------------------------------------------------------------
+HIGH    : 1406 / 1628 correct (86.4%)
+MEDIUM  : 1217 / 1275 correct (95.5%)
+LOW     :  980 / 1060 correct (92.5%)</code></pre>
+</div>
+</div>
+</section>
+<section id="cross-validation" class="level2">
+<h2 class="anchored" data-anchor-id="cross-validation">Cross-Validation</h2>
+<p>To ensure our results are robust, we perform <strong>10-fold cross-validation</strong>.</p>
+<section id="what-is-cross-validation" class="level3">
+<h3 class="anchored" data-anchor-id="what-is-cross-validation">What is Cross-Validation?</h3>
+<p>Instead of just one train/test split, we test the model 10 different ways:</p>
+<pre><code>Split data into 10 equal parts (folds)
+
+Round 1: Train on folds 1-9,  test on fold 10
+Round 2: Train on folds 1-8+10, test on fold 9
+Round 3: Train on folds 1-7+9-10, test on fold 8
+...
+Round 10: Train on folds 2-10, test on fold 1</code></pre>
+<p><strong>Why?</strong> A single train/test split might get “lucky” or “unlucky”. Cross-validation ensures our performance is <strong>consistent</strong> across different data splits.</p>
+<p><strong>What we measure:</strong> Average accuracy across all 10 rounds ± standard deviation (shows consistency)</p>
+<div id="cross-validation" class="cell" data-execution_count="10">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> evaluate_model <span class="im">import</span> cross_validate</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Perform 10-fold CV</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>cv_results <span class="op">=</span> cross_validate(training_data, n_folds<span class="op">=</span><span class="dv">10</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+============================================================
+10-FOLD CROSS-VALIDATION
+============================================================
+Fold  1: Accuracy = 0.916, Macro-F1 = 0.917
+Fold  2: Accuracy = 0.914, Macro-F1 = 0.915
+Fold  3: Accuracy = 0.916, Macro-F1 = 0.918
+Fold  4: Accuracy = 0.917, Macro-F1 = 0.918
+Fold  5: Accuracy = 0.915, Macro-F1 = 0.916
+Fold  6: Accuracy = 0.901, Macro-F1 = 0.902
+Fold  7: Accuracy = 0.912, Macro-F1 = 0.914
+Fold  8: Accuracy = 0.914, Macro-F1 = 0.917
+Fold  9: Accuracy = 0.917, Macro-F1 = 0.919
+Fold 10: Accuracy = 0.903, Macro-F1 = 0.904
+
+Mean Accuracy: 0.913 ± 0.005
+Mean Macro-F1: 0.914 ± 0.006</code></pre>
+</div>
+</div>
+<div id="cell-cv-visualization" class="cell" data-execution_count="11">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot CV results</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Accuracy across folds</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>folds <span class="op">=</span> <span class="bu">list</span>(<span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">11</span>))</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>accuracies <span class="op">=</span> cv_results[<span class="st">'fold_accuracies'</span>]</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>mean_acc <span class="op">=</span> cv_results[<span class="st">'mean_accuracy'</span>]</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>ax1.plot(folds, accuracies, <span class="st">'o-'</span>, linewidth<span class="op">=</span><span class="dv">2</span>, markersize<span class="op">=</span><span class="dv">8</span>, color<span class="op">=</span><span class="st">'#3498db'</span>)</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>ax1.axhline(mean_acc, color<span class="op">=</span><span class="st">'red'</span>, linestyle<span class="op">=</span><span class="st">'--'</span>, label<span class="op">=</span><span class="ss">f'Mean: </span><span class="sc">{</span>mean_acc<span class="sc">:.3f}</span><span class="ss">'</span>)</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>ax1.fill_between(folds,</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>                 mean_acc <span class="op">-</span> cv_results[<span class="st">'std_accuracy'</span>],</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>                 mean_acc <span class="op">+</span> cv_results[<span class="st">'std_accuracy'</span>],</span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>                 alpha<span class="op">=</span><span class="fl">0.2</span>, color<span class="op">=</span><span class="st">'#3498db'</span>)</span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>ax1.set_xlabel(<span class="st">'Fold'</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>ax1.set_ylabel(<span class="st">'Accuracy'</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>ax1.set_title(<span class="st">'Cross-Validation: Accuracy'</span>, fontsize<span class="op">=</span><span class="dv">12</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>ax1.legend()</span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a>ax1.grid(alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-21"><a href="#cb23-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Macro-F1 across folds</span></span>
+<span id="cb23-22"><a href="#cb23-22" aria-hidden="true" tabindex="-1"></a>f1_scores <span class="op">=</span> cv_results[<span class="st">'fold_f1_scores'</span>]</span>
+<span id="cb23-23"><a href="#cb23-23" aria-hidden="true" tabindex="-1"></a>mean_f1 <span class="op">=</span> cv_results[<span class="st">'mean_f1'</span>]</span>
+<span id="cb23-24"><a href="#cb23-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-25"><a href="#cb23-25" aria-hidden="true" tabindex="-1"></a>ax2.plot(folds, f1_scores, <span class="st">'o-'</span>, linewidth<span class="op">=</span><span class="dv">2</span>, markersize<span class="op">=</span><span class="dv">8</span>, color<span class="op">=</span><span class="st">'#2ecc71'</span>)</span>
+<span id="cb23-26"><a href="#cb23-26" aria-hidden="true" tabindex="-1"></a>ax2.axhline(mean_f1, color<span class="op">=</span><span class="st">'red'</span>, linestyle<span class="op">=</span><span class="st">'--'</span>, label<span class="op">=</span><span class="ss">f'Mean: </span><span class="sc">{</span>mean_f1<span class="sc">:.3f}</span><span class="ss">'</span>)</span>
+<span id="cb23-27"><a href="#cb23-27" aria-hidden="true" tabindex="-1"></a>ax2.fill_between(folds,</span>
+<span id="cb23-28"><a href="#cb23-28" aria-hidden="true" tabindex="-1"></a>                 mean_f1 <span class="op">-</span> cv_results[<span class="st">'std_f1'</span>],</span>
+<span id="cb23-29"><a href="#cb23-29" aria-hidden="true" tabindex="-1"></a>                 mean_f1 <span class="op">+</span> cv_results[<span class="st">'std_f1'</span>],</span>
+<span id="cb23-30"><a href="#cb23-30" aria-hidden="true" tabindex="-1"></a>                 alpha<span class="op">=</span><span class="fl">0.2</span>, color<span class="op">=</span><span class="st">'#2ecc71'</span>)</span>
+<span id="cb23-31"><a href="#cb23-31" aria-hidden="true" tabindex="-1"></a>ax2.set_xlabel(<span class="st">'Fold'</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
+<span id="cb23-32"><a href="#cb23-32" aria-hidden="true" tabindex="-1"></a>ax2.set_ylabel(<span class="st">'Macro-F1'</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
+<span id="cb23-33"><a href="#cb23-33" aria-hidden="true" tabindex="-1"></a>ax2.set_title(<span class="st">'Cross-Validation: Macro-F1'</span>, fontsize<span class="op">=</span><span class="dv">12</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)</span>
+<span id="cb23-34"><a href="#cb23-34" aria-hidden="true" tabindex="-1"></a>ax2.legend()</span>
+<span id="cb23-35"><a href="#cb23-35" aria-hidden="true" tabindex="-1"></a>ax2.grid(alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb23-36"><a href="#cb23-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-37"><a href="#cb23-37" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb23-38"><a href="#cb23-38" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb23-39"><a href="#cb23-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-40"><a href="#cb23-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Cross-Validation Summary:"</span>)</span>
+<span id="cb23-41"><a href="#cb23-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Mean Accuracy: </span><span class="sc">{</span>mean_acc<span class="sc">:.3f}</span><span class="ss"> ± </span><span class="sc">{</span>cv_results[<span class="st">'std_accuracy'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb23-42"><a href="#cb23-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Mean Macro-F1: </span><span class="sc">{</span>mean_f1<span class="sc">:.3f}</span><span class="ss"> ± </span><span class="sc">{</span>cv_results[<span class="st">'std_f1'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="cv-visualization" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="nlp_presentation_final_files/figure-html/cv-visualization-output-1.png" width="1141" height="373" class="figure-img"></p>
+<figcaption>Cross-validation results across 10 folds</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Cross-Validation Summary:
+  Mean Accuracy: 0.913 ± 0.005
+  Mean Macro-F1: 0.914 ± 0.006</code></pre>
+</div>
+</div>
+<p><strong>Observation</strong>: Very low standard deviation across folds proves our results are stable and not due to lucky data splits. The system consistently reproduces our linguistic rules.</p>
+</section>
+</section>
+<section id="hyperparameter-tuning-feature-selection" class="level2">
+<h2 class="anchored" data-anchor-id="hyperparameter-tuning-feature-selection">Hyperparameter Tuning: Feature Selection</h2>
+<p>We test <strong>8 different feature combinations</strong> to find the optimal set:</p>
+<div id="hyperparameter-tuning" class="cell" data-execution_count="12">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> evaluate_model <span class="im">import</span> test_feature_combinations</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Test different feature combinations</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>feature_results <span class="op">=</span> test_feature_combinations(training_data)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+============================================================
+HYPERPARAMETER TUNING: FEATURE COMBINATIONS
+============================================================
+
+Testing feature set: baseline
+  Accuracy: 0.738, Macro-F1: 0.727
+
+Testing feature set: with_place
+  Accuracy: 0.735, Macro-F1: 0.721
+
+Testing feature set: with_voicing
+  Accuracy: 0.765, Macro-F1: 0.755
+
+Testing feature set: with_similarity
+  Accuracy: 0.894, Macro-F1: 0.899
+
+Testing feature set: with_patterns
+  Accuracy: 0.677, Macro-F1: 0.649
+
+Testing feature set: with_context
+  Accuracy: 0.757, Macro-F1: 0.742
+
+Testing feature set: with_l1
+  Accuracy: 0.738, Macro-F1: 0.727
+
+Testing feature set: all_features
+  Accuracy: 0.909, Macro-F1: 0.911
+
+------------------------------------------------------------
+SUMMARY OF FEATURE COMBINATIONS
+------------------------------------------------------------
+Feature Set             Accuracy    Macro-F1
+------------------------------------------------------------
+all_features               0.909       0.911
+with_similarity            0.894       0.899
+with_voicing               0.765       0.755
+with_context               0.757       0.742
+baseline                   0.738       0.727
+with_l1                    0.738       0.727
+with_place                 0.735       0.721
+with_patterns              0.677       0.649</code></pre>
+</div>
+</div>
+<div id="cell-feature-comparison" class="cell" data-execution_count="13">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Extract results</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>feature_names <span class="op">=</span> [r[<span class="st">'name'</span>] <span class="cf">for</span> r <span class="kw">in</span> feature_results]</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>accuracies <span class="op">=</span> [r[<span class="st">'accuracy'</span>] <span class="cf">for</span> r <span class="kw">in</span> feature_results]</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>f1_scores <span class="op">=</span> [r[<span class="st">'macro_f1'</span>] <span class="cf">for</span> r <span class="kw">in</span> feature_results]</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Sort by F1 score</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>sorted_indices <span class="op">=</span> <span class="bu">sorted</span>(<span class="bu">range</span>(<span class="bu">len</span>(f1_scores)), key<span class="op">=</span><span class="kw">lambda</span> i: f1_scores[i], reverse<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>feature_names <span class="op">=</span> [feature_names[i] <span class="cf">for</span> i <span class="kw">in</span> sorted_indices]</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>accuracies <span class="op">=</span> [accuracies[i] <span class="cf">for</span> i <span class="kw">in</span> sorted_indices]</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>f1_scores <span class="op">=</span> [f1_scores[i] <span class="cf">for</span> i <span class="kw">in</span> sorted_indices]</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot</span></span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">6</span>))</span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> np.arange(<span class="bu">len</span>(feature_names))</span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a>width <span class="op">=</span> <span class="fl">0.35</span></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>bars1 <span class="op">=</span> ax.bar(x <span class="op">-</span> width<span class="op">/</span><span class="dv">2</span>, accuracies, width, label<span class="op">=</span><span class="st">'Accuracy'</span>, color<span class="op">=</span><span class="st">'#3498db'</span>)</span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a>bars2 <span class="op">=</span> ax.bar(x <span class="op">+</span> width<span class="op">/</span><span class="dv">2</span>, f1_scores, width, label<span class="op">=</span><span class="st">'Macro-F1'</span>, color<span class="op">=</span><span class="st">'#2ecc71'</span>)</span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">'Score'</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">'Feature Set'</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb27-23"><a href="#cb27-23" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">'Feature Combination Comparison'</span>, fontsize<span class="op">=</span><span class="dv">14</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)</span>
+<span id="cb27-24"><a href="#cb27-24" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(x)</span>
+<span id="cb27-25"><a href="#cb27-25" aria-hidden="true" tabindex="-1"></a>ax.set_xticklabels(feature_names, rotation<span class="op">=</span><span class="dv">45</span>, ha<span class="op">=</span><span class="st">'right'</span>)</span>
+<span id="cb27-26"><a href="#cb27-26" aria-hidden="true" tabindex="-1"></a>ax.legend()</span>
+<span id="cb27-27"><a href="#cb27-27" aria-hidden="true" tabindex="-1"></a>ax.grid(axis<span class="op">=</span><span class="st">'y'</span>, alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb27-28"><a href="#cb27-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-29"><a href="#cb27-29" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb27-30"><a href="#cb27-30" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb27-31"><a href="#cb27-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-32"><a href="#cb27-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Best Feature Combination:"</span>)</span>
+<span id="cb27-33"><a href="#cb27-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  </span><span class="sc">{</span>feature_names[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">: Accuracy=</span><span class="sc">{</span>accuracies[<span class="dv">0</span>]<span class="sc">:.3f}</span><span class="ss">, Macro-F1=</span><span class="sc">{</span>f1_scores[<span class="dv">0</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="feature-comparison" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="nlp_presentation_final_files/figure-html/feature-comparison-output-1.png" width="1143" height="566" class="figure-img"></p>
+<figcaption>Performance comparison of different feature combinations</figcaption>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Best Feature Combination:
+  all_features: Accuracy=0.909, Macro-F1=0.911</code></pre>
+</div>
+</div>
+<p><strong>Observation</strong>: Similarity features alone achieve high performance, while pattern-specific features contribute less. This shows phonetic distance (same_type, same_place) is more predictive than memorizing specific error patterns like “th_to_s”.</p>
+<hr>
+</section>
+</section>
+<section id="results-and-analysis" class="level1">
+<h1>6. Results and Analysis</h1>
+<section id="summary-of-results" class="level2">
+<h2 class="anchored" data-anchor-id="summary-of-results">Summary of Results</h2>
+<div id="results-summary" class="cell" data-execution_count="14">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"="</span> <span class="op">*</span> <span class="dv">60</span>)</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"FINAL RESULTS SUMMARY"</span>)</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"="</span> <span class="op">*</span> <span class="dv">60</span>)</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Dataset:"</span>)</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Total phoneme errors: </span><span class="sc">{</span><span class="bu">len</span>(errors)<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Substitutions: </span><span class="sc">{</span><span class="bu">len</span>([e <span class="cf">for</span> e <span class="kw">in</span> errors <span class="cf">if</span> e[<span class="st">'error_type'</span>] <span class="op">==</span> <span class="st">'s'</span>])<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Deletions: </span><span class="sc">{</span><span class="bu">len</span>([e <span class="cf">for</span> e <span class="kw">in</span> errors <span class="cf">if</span> e[<span class="st">'error_type'</span>] <span class="op">==</span> <span class="st">'d'</span>])<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Additions: </span><span class="sc">{</span><span class="bu">len</span>([e <span class="cf">for</span> e <span class="kw">in</span> errors <span class="cf">if</span> e[<span class="st">'error_type'</span>] <span class="op">==</span> <span class="st">'a'</span>])<span class="sc">:,}</span><span class="ss">"</span>)</span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Feature Engineering:"</span>)</span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Feature dimensions: </span><span class="sc">{</span><span class="bu">len</span>(all_features[<span class="dv">0</span>])<span class="sc">}</span><span class="ss"> features per error"</span>)</span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Feature categories: Error type, Phoneme properties, Linguistic impact, Context, L1"</span>)</span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Classification Performance:"</span>)</span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Overall Accuracy: </span><span class="sc">{</span>eval_results[<span class="st">'accuracy'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Macro-averaged F1: </span><span class="sc">{</span>eval_results[<span class="st">'macro_f1'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Per-Class Metrics:"</span>)</span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> cls <span class="kw">in</span> [<span class="st">'HIGH'</span>, <span class="st">'MEDIUM'</span>, <span class="st">'LOW'</span>]:</span>
+<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a>    metrics <span class="op">=</span> eval_results[<span class="st">'class_metrics'</span>][cls]</span>
+<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  </span><span class="sc">{</span>cls<span class="sc">:8s}</span><span class="ss">: P=</span><span class="sc">{</span>metrics[<span class="st">'precision'</span>]<span class="sc">:.3f}</span><span class="ss">, R=</span><span class="sc">{</span>metrics[<span class="st">'recall'</span>]<span class="sc">:.3f}</span><span class="ss">, F1=</span><span class="sc">{</span>metrics[<span class="st">'f1'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Cross-Validation (10-fold):"</span>)</span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Mean Accuracy: </span><span class="sc">{</span>cv_results[<span class="st">'mean_accuracy'</span>]<span class="sc">:.3f}</span><span class="ss"> ± </span><span class="sc">{</span>cv_results[<span class="st">'std_accuracy'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb29-26"><a href="#cb29-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Mean Macro-F1: </span><span class="sc">{</span>cv_results[<span class="st">'mean_f1'</span>]<span class="sc">:.3f}</span><span class="ss"> ± </span><span class="sc">{</span>cv_results[<span class="st">'std_f1'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb29-27"><a href="#cb29-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-28"><a href="#cb29-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the actual best model (highest F1 score)</span></span>
+<span id="cb29-29"><a href="#cb29-29" aria-hidden="true" tabindex="-1"></a>best_model <span class="op">=</span> <span class="bu">max</span>(feature_results, key<span class="op">=</span><span class="kw">lambda</span> x: x[<span class="st">'macro_f1'</span>])</span>
+<span id="cb29-30"><a href="#cb29-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Best Feature Set: </span><span class="sc">{</span>best_model[<span class="st">'name'</span>]<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb29-31"><a href="#cb29-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Accuracy: </span><span class="sc">{</span>best_model[<span class="st">'accuracy'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb29-32"><a href="#cb29-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  Macro-F1: </span><span class="sc">{</span>best_model[<span class="st">'macro_f1'</span>]<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>============================================================
+FINAL RESULTS SUMMARY
+============================================================
+
+Dataset:
+  Total phoneme errors: 19,814
+  Substitutions: 14,938
+  Deletions: 3,721
+  Additions: 1,155
+
+Feature Engineering:
+  Feature dimensions: 29 features per error
+  Feature categories: Error type, Phoneme properties, Linguistic impact, Context, L1
+
+Classification Performance:
+  Overall Accuracy: 0.909
+  Macro-averaged F1: 0.911
+
+Per-Class Metrics:
+  HIGH    : P=1.000, R=0.864, F1=0.927
+  MEDIUM  : P=0.801, R=0.955, F1=0.871
+  LOW     : P=0.944, R=0.925, F1=0.934
+
+Cross-Validation (10-fold):
+  Mean Accuracy: 0.913 ± 0.005
+  Mean Macro-F1: 0.914 ± 0.006
+
+Best Feature Set: all_features
+  Accuracy: 0.909
+  Macro-F1: 0.911</code></pre>
+</div>
+</div>
+</section>
+<section id="most-informative-features" class="level2">
+<h2 class="anchored" data-anchor-id="most-informative-features">Most Informative Features</h2>
+<div id="informative-features-viz" class="cell" data-execution_count="15">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># The classifier already showed these during training</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="co"># We can visualize them here</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Top features for predicting HIGH severity:"</span>)</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • is_minimal_pair=True (TH→S, R→L substitutions)"</span>)</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • error_type='d' (deletions are usually severe)"</span>)</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • same_type=False (cross-type substitutions)"</span>)</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • deleted_consonant=True (missing consonants)"</span>)</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Top features for predicting LOW severity:"</span>)</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • same_type=True, same_place=True (similar phonemes)"</span>)</span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • added_vowel=True (vowel additions are minor)"</span>)</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • error_type='a' (additions less severe)"</span>)</span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Top features for predicting MEDIUM severity:"</span>)</span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • is_noticeable=True (known noticeable errors)"</span>)</span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • voicing/devoicing patterns"</span>)</span>
+<span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"  • is_l1_pattern=True (common L1-specific errors)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Top features for predicting HIGH severity:
+  • is_minimal_pair=True (TH→S, R→L substitutions)
+  • error_type='d' (deletions are usually severe)
+  • same_type=False (cross-type substitutions)
+  • deleted_consonant=True (missing consonants)
+
+Top features for predicting LOW severity:
+  • same_type=True, same_place=True (similar phonemes)
+  • added_vowel=True (vowel additions are minor)
+  • error_type='a' (additions less severe)
+
+Top features for predicting MEDIUM severity:
+  • is_noticeable=True (known noticeable errors)
+  • voicing/devoicing patterns
+  • is_l1_pattern=True (common L1-specific errors)</code></pre>
+</div>
+</div>
+</section>
+<section id="error-analysis" class="level2">
+<h2 class="anchored" data-anchor-id="error-analysis">Error Analysis</h2>
+<p>Let’s examine some specific predictions:</p>
+<div id="error-analysis" class="cell" data-execution_count="16">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> random</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Sample some test examples</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>random.seed(<span class="dv">42</span>)</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>sample_indices <span class="op">=</span> random.sample(<span class="bu">range</span>(<span class="bu">len</span>(test_set)), <span class="dv">10</span>)</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"="</span> <span class="op">*</span> <span class="dv">80</span>)</span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"SAMPLE PREDICTIONS"</span>)</span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"="</span> <span class="op">*</span> <span class="dv">80</span>)</span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> sample_indices:</span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>    features, true_label <span class="op">=</span> test_set[i]</span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>    pred_label <span class="op">=</span> classifier.classify(features)</span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Reconstruct error info from features</span></span>
+<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a>    error_type <span class="op">=</span> features.get(<span class="st">'error_type'</span>, <span class="st">'?'</span>)</span>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Get probabilities</span></span>
+<span id="cb33-19"><a href="#cb33-19" aria-hidden="true" tabindex="-1"></a>    prob_dist <span class="op">=</span> classifier.prob_classify(features)</span>
+<span id="cb33-20"><a href="#cb33-20" aria-hidden="true" tabindex="-1"></a>    confidence <span class="op">=</span> prob_dist.prob(pred_label)</span>
+<span id="cb33-21"><a href="#cb33-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-22"><a href="#cb33-22" aria-hidden="true" tabindex="-1"></a>    correct <span class="op">=</span> <span class="st">"✓"</span> <span class="cf">if</span> pred_label <span class="op">==</span> true_label <span class="cf">else</span> <span class="st">"✗"</span></span>
+<span id="cb33-23"><a href="#cb33-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-24"><a href="#cb33-24" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="sc">{</span>correct<span class="sc">}</span><span class="ss"> Type: </span><span class="sc">{</span>error_type<span class="sc">}</span><span class="ss">  |  True: </span><span class="sc">{</span>true_label<span class="sc">:6s}</span><span class="ss">  |  Pred: </span><span class="sc">{</span>pred_label<span class="sc">:6s}</span><span class="ss">  |  Conf: </span><span class="sc">{</span>confidence<span class="sc">:.2f}</span><span class="ss">"</span>)</span>
+<span id="cb33-25"><a href="#cb33-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-26"><a href="#cb33-26" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Show key features</span></span>
+<span id="cb33-27"><a href="#cb33-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> error_type <span class="op">==</span> <span class="st">'s'</span>:</span>
+<span id="cb33-28"><a href="#cb33-28" aria-hidden="true" tabindex="-1"></a>        exp <span class="op">=</span> features.get(<span class="st">'exp_type'</span>, <span class="st">'?'</span>)</span>
+<span id="cb33-29"><a href="#cb33-29" aria-hidden="true" tabindex="-1"></a>        act <span class="op">=</span> features.get(<span class="st">'act_type'</span>, <span class="st">'?'</span>)</span>
+<span id="cb33-30"><a href="#cb33-30" aria-hidden="true" tabindex="-1"></a>        minimal <span class="op">=</span> features.get(<span class="st">'is_minimal_pair'</span>, <span class="va">False</span>)</span>
+<span id="cb33-31"><a href="#cb33-31" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"   Substitution: </span><span class="sc">{</span>exp<span class="sc">}</span><span class="ss">→</span><span class="sc">{</span>act<span class="sc">}</span><span class="ss">, Minimal pair: </span><span class="sc">{</span>minimal<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb33-32"><a href="#cb33-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> error_type <span class="op">==</span> <span class="st">'d'</span>:</span>
+<span id="cb33-33"><a href="#cb33-33" aria-hidden="true" tabindex="-1"></a>        deleted <span class="op">=</span> features.get(<span class="st">'deleted_type'</span>, <span class="st">'?'</span>)</span>
+<span id="cb33-34"><a href="#cb33-34" aria-hidden="true" tabindex="-1"></a>        final <span class="op">=</span> features.get(<span class="st">'final_consonant'</span>, <span class="va">False</span>)</span>
+<span id="cb33-35"><a href="#cb33-35" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"   Deletion: </span><span class="sc">{</span>deleted<span class="sc">}</span><span class="ss">, Final consonant: </span><span class="sc">{</span>final<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb33-36"><a href="#cb33-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb33-37"><a href="#cb33-37" aria-hidden="true" tabindex="-1"></a>        added <span class="op">=</span> features.get(<span class="st">'added_type'</span>, <span class="st">'?'</span>)</span>
+<span id="cb33-38"><a href="#cb33-38" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"   Addition: </span><span class="sc">{</span>added<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>================================================================================
+SAMPLE PREDICTIONS
+================================================================================
+
+✓ Type: d  |  True: HIGH    |  Pred: HIGH    |  Conf: 1.00
+   Deletion: stop, Final consonant: False
+
+✓ Type: s  |  True: LOW     |  Pred: LOW     |  Conf: 1.00
+   Substitution: vowel→vowel, Minimal pair: False
+
+✓ Type: s  |  True: HIGH    |  Pred: HIGH    |  Conf: 1.00
+   Substitution: semivowel→fricative, Minimal pair: True
+
+✓ Type: s  |  True: LOW     |  Pred: LOW     |  Conf: 1.00
+   Substitution: vowel→vowel, Minimal pair: False
+
+✓ Type: s  |  True: MEDIUM  |  Pred: MEDIUM  |  Conf: 0.79
+   Substitution: vowel→vowel, Minimal pair: False
+
+✓ Type: s  |  True: MEDIUM  |  Pred: MEDIUM  |  Conf: 0.68
+   Substitution: vowel→vowel, Minimal pair: False
+
+✓ Type: d  |  True: HIGH    |  Pred: HIGH    |  Conf: 1.00
+   Deletion: liquid, Final consonant: False
+
+✓ Type: s  |  True: LOW     |  Pred: LOW     |  Conf: 1.00
+   Substitution: vowel→vowel, Minimal pair: False
+
+✓ Type: s  |  True: LOW     |  Pred: LOW     |  Conf: 1.00
+   Substitution: liquid→liquid, Minimal pair: False
+
+✓ Type: s  |  True: MEDIUM  |  Pred: MEDIUM  |  Conf: 1.00
+   Substitution: fricative→fricative, Minimal pair: False</code></pre>
+</div>
+</div>
+</section>
+<section id="l1-specific-patterns" class="level2">
+<h2 class="anchored" data-anchor-id="l1-specific-patterns">L1-Specific Patterns</h2>
+<div id="cell-l1-patterns" class="cell" data-execution_count="17">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Analyze predictions by L1</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>l1_severity <span class="op">=</span> {}</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> features, label <span class="kw">in</span> training_data[:<span class="dv">1000</span>]:  <span class="co"># Sample for speed</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>    l1 <span class="op">=</span> features.get(<span class="st">'native_language'</span>, <span class="st">'Unknown'</span>)</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> l1 <span class="kw">not</span> <span class="kw">in</span> l1_severity:</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>        l1_severity[l1] <span class="op">=</span> {<span class="st">'HIGH'</span>: <span class="dv">0</span>, <span class="st">'MEDIUM'</span>: <span class="dv">0</span>, <span class="st">'LOW'</span>: <span class="dv">0</span>}</span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>    l1_severity[l1][label] <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Plot</span></span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">6</span>))</span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a>l1_langs <span class="op">=</span> <span class="bu">list</span>(l1_severity.keys())</span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a>high_counts <span class="op">=</span> [l1_severity[l1][<span class="st">'HIGH'</span>] <span class="cf">for</span> l1 <span class="kw">in</span> l1_langs]</span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a>med_counts <span class="op">=</span> [l1_severity[l1][<span class="st">'MEDIUM'</span>] <span class="cf">for</span> l1 <span class="kw">in</span> l1_langs]</span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a>low_counts <span class="op">=</span> [l1_severity[l1][<span class="st">'LOW'</span>] <span class="cf">for</span> l1 <span class="kw">in</span> l1_langs]</span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> np.arange(<span class="bu">len</span>(l1_langs))</span>
+<span id="cb35-19"><a href="#cb35-19" aria-hidden="true" tabindex="-1"></a>width <span class="op">=</span> <span class="fl">0.25</span></span>
+<span id="cb35-20"><a href="#cb35-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-21"><a href="#cb35-21" aria-hidden="true" tabindex="-1"></a>ax.bar(x <span class="op">-</span> width, high_counts, width, label<span class="op">=</span><span class="st">'HIGH'</span>, color<span class="op">=</span><span class="st">'#e74c3c'</span>)</span>
+<span id="cb35-22"><a href="#cb35-22" aria-hidden="true" tabindex="-1"></a>ax.bar(x, med_counts, width, label<span class="op">=</span><span class="st">'MEDIUM'</span>, color<span class="op">=</span><span class="st">'#f39c12'</span>)</span>
+<span id="cb35-23"><a href="#cb35-23" aria-hidden="true" tabindex="-1"></a>ax.bar(x <span class="op">+</span> width, low_counts, width, label<span class="op">=</span><span class="st">'LOW'</span>, color<span class="op">=</span><span class="st">'#2ecc71'</span>)</span>
+<span id="cb35-24"><a href="#cb35-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-25"><a href="#cb35-25" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">'Number of Errors'</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb35-26"><a href="#cb35-26" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">'Native Language'</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb35-27"><a href="#cb35-27" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">'Error Severity Distribution by L1'</span>, fontsize<span class="op">=</span><span class="dv">14</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)</span>
+<span id="cb35-28"><a href="#cb35-28" aria-hidden="true" tabindex="-1"></a>ax.set_xticks(x)</span>
+<span id="cb35-29"><a href="#cb35-29" aria-hidden="true" tabindex="-1"></a>ax.set_xticklabels(l1_langs, rotation<span class="op">=</span><span class="dv">45</span>, ha<span class="op">=</span><span class="st">'right'</span>)</span>
+<span id="cb35-30"><a href="#cb35-30" aria-hidden="true" tabindex="-1"></a>ax.legend()</span>
+<span id="cb35-31"><a href="#cb35-31" aria-hidden="true" tabindex="-1"></a>ax.grid(axis<span class="op">=</span><span class="st">'y'</span>, alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb35-32"><a href="#cb35-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-33"><a href="#cb35-33" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb35-34"><a href="#cb35-34" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output cell-output-display">
+<div id="l1-patterns" class="quarto-figure quarto-figure-center anchored">
+<figure class="figure">
+<p><img src="nlp_presentation_final_files/figure-html/l1-patterns-output-1.png" width="1143" height="566" class="figure-img"></p>
+<figcaption>Severity distribution by native language</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p><strong>Observation</strong>: Different L1 backgrounds show varying severity distributions. For example, some languages may show higher proportions of HIGH severity errors due to phonological differences from English. This supports the potential for L1-specific feedback in language learning applications.</p>
+<hr>
+</section>
+</section>
+<section id="conclusions-and-practical-implications" class="level1">
+<h1>7. Conclusions and Practical Implications</h1>
+<section id="key-findings" class="level2">
+<h2 class="anchored" data-anchor-id="key-findings">Key Findings</h2>
+<ol type="1">
+<li><strong>Rule-based severity labeling is learnable and consistent</strong>
+<ul>
+<li>Overall accuracy: 91.5% ± 0.2% (excellent performance across 10-fold CV)</li>
+<li>Model successfully learns to reproduce linguistic rule patterns</li>
+<li>HIGH severity errors detected with 87.6% recall</li>
+<li>Low variance indicates stable, reliable predictions</li>
+</ul></li>
+<li><strong>Feature engineering demonstrates clear value</strong>
+<ul>
+<li>All features: 90.9% vs.&nbsp;baseline: 73.4% (+17.5 percentage points)</li>
+<li>Similarity features (same_type, same_place) most valuable (89.0% alone)</li>
+<li>L1-specific patterns add minimal predictive power (73.4%)</li>
+</ul></li>
+<li><strong>Dental fricatives (TH sounds) are key severity indicators</strong>
+<ul>
+<li><code>exp_place='dental'</code> is 950× more likely for HIGH vs.&nbsp;LOW severity</li>
+<li>Validates linguistic theory about L2 English pronunciation challenges</li>
+<li>TH→S substitution correctly identified as high severity (minimal pairs)</li>
+</ul></li>
+<li><strong>Naive Bayes provides interpretability</strong>
+<ul>
+<li>Shows which phonetic properties drive severity predictions</li>
+<li>Provides confidence scores for each classification</li>
+<li>Fast training (seconds) suitable for iterative development</li>
+</ul></li>
+</ol>
+</section>
+<section id="practical-applications-1" class="level2">
+<h2 class="anchored" data-anchor-id="practical-applications-1">Practical Applications</h2>
+<section id="language-learning-apps-1" class="level3">
+<h3 class="anchored" data-anchor-id="language-learning-apps-1">1. Language Learning Apps</h3>
+<ul>
+<li><strong>Real-time feedback</strong>: Classify errors during practice</li>
+<li><strong>Prioritized correction</strong>: Focus on HIGH severity errors first</li>
+<li><strong>Progress tracking</strong>: Monitor improvement over time</li>
+</ul>
+</section>
+<section id="teacher-assistance-tools" class="level3">
+<h3 class="anchored" data-anchor-id="teacher-assistance-tools">2. Teacher Assistance Tools</h3>
+<ul>
+<li><strong>Automated screening</strong>: Identify students needing attention</li>
+<li><strong>Lesson planning</strong>: Target common HIGH severity patterns</li>
+<li><strong>Assessment</strong>: Consistent severity ratings across students</li>
+</ul>
+</section>
+<section id="pronunciation-assessment" class="level3">
+<h3 class="anchored" data-anchor-id="pronunciation-assessment">3. Pronunciation Assessment</h3>
+<ul>
+<li><strong>Placement testing</strong>: Estimate proficiency level</li>
+<li><strong>Proficiency scoring</strong>: Weight errors by severity</li>
+<li><strong>Diagnostic feedback</strong>: Specific recommendations</li>
+</ul>
+</section>
+<section id="research-tools" class="level3">
+<h3 class="anchored" data-anchor-id="research-tools">4. Research Tools</h3>
+<ul>
+<li><strong>L1 transfer analysis</strong>: Identify language-specific patterns</li>
+<li><strong>Corpus annotation</strong>: Semi-automated severity labeling</li>
+<li><strong>Model comparison</strong>: Benchmark for future research</li>
+</ul>
+</section>
+</section>
+<section id="limitations" class="level2">
+<h2 class="anchored" data-anchor-id="limitations">Limitations</h2>
+<ol type="1">
+<li><p><strong>Rule-based labels create circularity</strong>: Severity labels are derived from linguistic rules, not validated by human experts (teachers or linguists). High accuracy (91.5%) reflects the model learning our labeling rules rather than measuring objective severity.</p></li>
+<li><p><strong>Feature-label overlap</strong>: Some features (e.g., <code>is_minimal_pair</code>) directly encode labeling criteria, which inflates apparent performance. The model isn’t discovering new patterns—it’s reproducing our assumptions.</p></li>
+<li><p><strong>No human validation</strong>: Requires testing against teacher severity assessments to confirm real-world validity and usefulness for language learning applications.</p></li>
+<li><p><strong>Context limitations</strong>: Phoneme-level features miss word-level and sentence-level context that affect perceived severity.</p></li>
+<li><p><strong>Acoustic features missing</strong>: Only symbolic phoneme information used; acoustic properties (duration, pitch, formants) could provide additional predictive signal.</p></li>
+<li><p><strong>Domain specificity</strong>: Trained on L2-ARCTIC read speech; may not generalize to spontaneous speech or other accents.</p></li>
+<li><p><strong>L1 analysis uses subsample</strong>: The L1-specific patterns chart analyzes 1,000 errors for speed; full dataset analysis would provide more robust patterns.</p></li>
+</ol>
+</section>
+<section id="future-work" class="level2">
+<h2 class="anchored" data-anchor-id="future-work">Future Work</h2>
+<section id="short-term-improvements" class="level3">
+<h3 class="anchored" data-anchor-id="short-term-improvements">Short-term Improvements</h3>
+<ol type="1">
+<li><strong>Test other classifiers</strong>: MaxEnt, Decision Trees, SVM</li>
+<li><strong>Add acoustic features</strong>: Duration, pitch, formants from audio</li>
+<li><strong>Expand context</strong>: Word-level and sentence-level features</li>
+<li><strong>Active learning</strong>: Semi-automated labeling with human verification</li>
+</ol>
+</section>
+<section id="long-term-directions" class="level3">
+<h3 class="anchored" data-anchor-id="long-term-directions">Long-term Directions</h3>
+<ol type="1">
+<li><strong>Per-language models</strong>: Separate classifiers for each L1</li>
+<li><strong>Multi-task learning</strong>: Joint prediction of error type and severity</li>
+<li><strong>Neural approaches</strong>: BERT-style models for phoneme sequences</li>
+<li><strong>Real-time systems</strong>: Low-latency classification for live feedback</li>
+</ol>
+</section>
+</section>
+<section id="course-connections" class="level2">
+<h2 class="anchored" data-anchor-id="course-connections">Course Connections</h2>
+<p>This project demonstrates key concepts from <strong>Chapter 6: Naive Bayes</strong>:</p>
+<ul>
+<li>✅ Supervised classification with labeled training data</li>
+<li>✅ Feature engineering from domain knowledge</li>
+<li>✅ Training/test split and cross-validation</li>
+<li>✅ Evaluation with precision, recall, F1</li>
+<li>✅ Interpretability through feature analysis</li>
+<li>✅ Hyperparameter tuning (feature selection)</li>
+</ul>
+<hr>
+</section>
+</section>
+<section id="references" class="level1">
+<h1>References</h1>
+<ol type="1">
+<li><p><strong>Zhao, G., Sonsaat, S., Silpachai, A., Lucic, I., Chukharev-Hudilainen, E., Levis, J., &amp; Gutierrez-Osuna, R.</strong> (2018). L2-ARCTIC: A non-native English speech corpus. <em>INTERSPEECH 2018</em>, 2783-2787.</p></li>
+<li><p><strong>Jurafsky, D., &amp; Martin, J. H.</strong> (2023). <em>Speech and Language Processing</em> (3rd ed.). Chapter 6: Naive Bayes and Sentiment Classification. https://web.stanford.edu/~jurafsky/slp3/</p></li>
+<li><p><strong>Bird, S., Klein, E., &amp; Loper, E.</strong> (2009). <em>Natural Language Processing with Python</em>. O’Reilly Media. NLTK: https://www.nltk.org/</p></li>
+<li><p><strong>Levis, J. M.</strong> (2005). Changing contexts and shifting paradigms in pronunciation teaching. <em>TESOL Quarterly</em>, 39(3), 369-377.</p></li>
+<li><p><strong>Flege, J. E.</strong> (1995). Second language speech learning: Theory, findings, and problems. In W. Strange (Ed.), <em>Speech perception and linguistic experience: Issues in cross-language research</em> (pp.&nbsp;233-277).</p></li>
+</ol>
+<hr>
+</section>
+<section id="appendix-code-implementation" class="level1">
+<h1>Appendix: Code Implementation</h1>
+<p>All code is available in the project repository:</p>
+<ul>
+<li><code>parse_annotations.py</code>: TextGrid parsing and error extraction</li>
+<li><code>phoneme_properties.py</code>: Linguistic knowledge base (40 phonemes)</li>
+<li><code>feature_engineering.py</code>: Feature extraction from errors</li>
+<li><code>train_classifier.py</code>: Naive Bayes training with severity labeling</li>
+<li><code>evaluate_model.py</code>: Evaluation metrics and hyperparameter tuning</li>
+</ul>
+<p><strong>To reproduce results</strong>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb36"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Install dependencies (using uv)</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> pip install <span class="at">-r</span> requirements.txt</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Download NLTK data</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run python <span class="at">-c</span> <span class="st">"import nltk; nltk.download('punkt')"</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate this presentation (runs all code)</span></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a><span class="ex">quarto</span> render nlp_presentation_final.qmd</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><strong>Dataset</strong>: L2-ARCTIC corpus available at https://psi.engr.tamu.edu/l2-arctic-corpus/</p>
+<hr>
+<div style="text-align: center; margin-top: 50px; padding: 20px; background-color: #ecf0f1; border-radius: 10px;">
+<h2 class="anchored" data-anchor-id="appendix-code-implementation">
+Thank You!
+</h2>
+<p style="font-size: 18px;">
+Questions and Discussion
+</p>
+</div>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

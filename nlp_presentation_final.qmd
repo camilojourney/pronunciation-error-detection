@@ -1,0 +1,976 @@
+---
+title: "Pronunciation Error Severity Classification"
+subtitle: "Supervised Learning for L2 Speech Assessment"
+author: "NLP Class Term Project"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    theme: cosmo
+    highlight-style: github
+jupyter: pronunciation-env
+---
+
+# 1. Introduction and Background
+
+## Motivation
+
+Second language (L2) learners face challenges in pronunciation that can significantly impact communication effectiveness. Not all pronunciation errors are equally important:
+
+- **Critical errors** change word meanings (e.g., "think" → "sink")
+- **Noticeable errors** affect naturalness but preserve meaning
+- **Minor accent features** don't impair communication
+
+Manual assessment by language teachers is:
+- Time-consuming and labor-intensive
+- Subjective and inconsistent across raters
+- Cannot scale to large classes or self-study contexts
+
+## Research Question
+
+**Can we automatically classify pronunciation error severity using supervised machine learning?**
+
+Specifically: Given a phoneme-level error made by an L2 speaker, predict whether it is:
+- **HIGH severity** (impairs comprehension)
+- **MEDIUM severity** (noticeable but understandable)
+- **LOW severity** (minor accent feature)
+
+## Approach Overview
+
+### What We're Building
+
+We create a **machine learning system** that learns to classify pronunciation error severity based on linguistic rules and phonetic features.
+
+### The Pipeline (Step-by-Step)
+
+**Step 1: Start with Raw Data**
+- L2-ARCTIC corpus contains pronunciation errors (e.g., speaker said "sink" instead of "think")
+- Each error shows: expected phoneme (TH), actual phoneme (S), and context
+- **Problem**: No severity labels included
+
+**Step 2: Create Severity Labels**
+- We write linguistic rules based on phonetics research:
+  - Minimal pairs (think→sink) = HIGH severity (changes meaning)
+  - Similar sounds (vowel→vowel) = LOW severity (minor accent)
+- Apply these rules to label all errors automatically
+
+**Step 3: Extract Features**
+- Convert each error into a feature vector (38 features):
+  - Phoneme properties: place, manner, voicing
+  - Similarity: same type? same place?
+  - Patterns: TH→S substitution? L1-specific error?
+
+**Step 4: Train Naive Bayes Classifier**
+- Split data: 80% training, 20% testing
+- Model learns patterns: "When place=dental → probably HIGH severity"
+- Goal: Learn to reproduce our linguistic rules from features
+
+**Step 5: Evaluate Performance**
+- Test on unseen examples
+- Measure: Does the model correctly apply our severity rules?
+- Validate with 10-fold cross-validation for consistency
+
+### What We're Actually Evaluating
+
+We're testing whether:
+1. ✅ Our linguistic severity rules are **consistent and learnable**
+2. ✅ Phonetic features **contain sufficient information** to predict severity
+3. ✅ The supervised learning approach **could work** with human-labeled data
+
+We're NOT claiming to measure "objective" severity (no human validation yet).
+
+## Practical Applications
+
+- **Automated feedback** for language learning apps
+- **Teacher assistance** for prioritizing instruction
+- **Assessment tools** for placement testing
+- **Research insights** into L1-specific error patterns
+
+## How These Results Apply to Real-World Applications
+
+### Language Learning Apps
+Once validated with human labels, this system enables:
+- **Smart Practice**: App focuses learner's time on HIGH severity errors first
+- **Adaptive Feedback**: "This error changes word meaning - fix this first!" vs "This is just accent - not urgent"
+- **Progress Dashboard**: Show reduction in critical errors over time
+
+### Teacher Dashboards
+Teachers could:
+- **Triage Students**: Automatically identify which students have critical pronunciation issues
+- **Lesson Planning**: See that "60% of my Spanish speakers struggle with V/B - plan focused lesson"
+- **Fair Assessment**: Consistent severity ratings across all students
+
+### Automated Placement
+- **Better than overall scores**: Two students with 85% accuracy might have very different needs
+- **Diagnostic Power**: System shows WHAT specific errors need attention
+
+The current results in learning our linguistic rules will help us determine if this approach is viable for real-world deployment.
+
+---
+
+# 2. Dataset: L2-ARCTIC Corpus
+
+## Corpus Overview
+
+The **L2-ARCTIC** corpus is a non-native English speech dataset designed for pronunciation research.
+
+**Key Statistics**:
+- 24 speakers from 6 native languages
+- 26,867 total utterances
+- Manually annotated phoneme-level pronunciation errors
+- Error types: substitutions, deletions, additions
+
+**Native Languages** (L1):
+- Arabic (4 speakers)
+- Mandarin Chinese (4 speakers)
+- Hindi (4 speakers)
+- Korean (4 speakers)
+- Spanish (4 speakers)
+- Vietnamese (4 speakers)
+
+## Annotation Format
+
+Errors are annotated in **TextGrid files** with the format: `CPL,PPL,type`
+
+Where:
+- **CPL** = Canonical Phoneme Label (expected phoneme)
+- **PPL** = Produced Phoneme Label (actual phoneme)
+- **type** = Error type: `s` (substitution), `d` (deletion), `a` (addition)
+
+**Example annotations**:
+```
+TH,S,s    → Substitution: expected TH, produced S ("think" → "sink")
+T,,d      → Deletion: expected T, nothing produced ("test" → "tes")
+,AH,a     → Addition: nothing expected, produced AH (extra vowel)
+```
+
+## Error Distribution
+
+Let's examine the distribution of errors in the dataset:
+
+```{python}
+#| label: load-data
+#| output: false
+
+from parse_annotations import process_all_annotations
+import pandas as pd
+
+# Parse all annotations
+print("Loading L2-ARCTIC annotations...")
+errors = process_all_annotations('l2arctic_release_v5')
+print(f"Total errors found: {len(errors)}")
+
+# Convert to DataFrame for analysis
+df = pd.DataFrame(errors)
+```
+
+```{python}
+#| label: error-distribution
+#| fig-cap: "Distribution of error types in L2-ARCTIC corpus"
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Error type counts
+error_counts = df['error_type'].value_counts()
+error_labels = {
+    's': 'Substitution',
+    'd': 'Deletion',
+    'a': 'Addition'
+}
+
+fig, ax = plt.subplots(figsize=(8, 5))
+bars = ax.bar([error_labels[k] for k in error_counts.index],
+               error_counts.values,
+               color=['#2ecc71', '#e74c3c', '#3498db'])
+ax.set_ylabel('Number of Errors', fontsize=12)
+ax.set_title('Error Type Distribution', fontsize=14, fontweight='bold')
+
+# Add counts on bars
+for bar in bars:
+    height = bar.get_height()
+    ax.text(bar.get_x() + bar.get_width()/2., height,
+            f'{int(height):,}',
+            ha='center', va='bottom', fontsize=11)
+
+plt.tight_layout()
+plt.show()
+
+print(f"\nSubstitutions: {error_counts.get('s', 0):,}")
+print(f"Deletions: {error_counts.get('d', 0):,}")
+print(f"Additions: {error_counts.get('a', 0):,}")
+```
+
+**Observation**: Substitutions dominate (~75% of errors), which makes sense - learners attempt the sound but produce a similar one. This validates our focus on phonetic feature similarity.
+
+## Native Language Distribution
+
+```{python}
+#| label: l1-distribution
+#| fig-cap: "Errors by speaker native language"
+
+# L1 distribution
+l1_counts = df['native_language'].value_counts()
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.bar(l1_counts.index, l1_counts.values, color='#9b59b6')
+ax.set_ylabel('Number of Errors', fontsize=12)
+ax.set_xlabel('Native Language (L1)', fontsize=12)
+ax.set_title('Error Distribution by Native Language', fontsize=14, fontweight='bold')
+ax.tick_params(axis='x', rotation=45)
+
+plt.tight_layout()
+plt.show()
+
+for lang, count in l1_counts.items():
+    print(f"{lang}: {count:,} errors")
+```
+
+**Observation**: Vietnamese speakers show the most errors, which may reflect either more recordings or pronunciation distance from English. Balanced representation across languages enables L1-specific pattern detection.
+
+---
+
+# 3. Text Preprocessing: Feature Engineering
+
+## Linguistic Knowledge Base
+
+The key to effective classification is **feature engineering**: converting raw phoneme errors into informative feature vectors.
+
+### Phoneme Properties
+
+We represent each phoneme by its **articulatory features**:
+
+- **Type**: vowel, stop, fricative, affricate, nasal, liquid, semivowel
+- **Place of articulation**: bilabial, alveolar, velar, dental, etc.
+- **Voicing**: voiced or voiceless
+
+**Example**: The phoneme `TH`
+```python
+{
+    'type': 'fricative',
+    'place': 'dental',
+    'voicing': 'voiceless'
+}
+```
+
+### Minimal Pairs
+
+**Minimal pairs** are word pairs differing by one phoneme:
+- think/sink (TH → S)
+- right/light (R → L)
+- bat/vat (B → V)
+
+These substitutions are **HIGH severity** because they change word meanings.
+
+We encode 40+ minimal pair patterns in `phoneme_properties.py`.
+
+## Feature Extraction
+
+```{python}
+#| label: feature-extraction-example
+
+from feature_engineering import extract_features
+
+# Example substitution error
+example_error = {
+    'expected': 'TH',
+    'actual': 'S',
+    'error_type': 's',
+    'prev_phoneme': 'IH',
+    'next_phoneme': 'NG',
+    'native_language': 'Chinese',
+    'speaker': 'BWC'
+}
+
+# Extract features
+features = extract_features(example_error)
+
+print("Features for TH → S substitution:")
+print("-" * 40)
+for key, value in sorted(features.items()):
+    print(f"{key:20s}: {value}")
+```
+
+## Feature Categories
+
+Our feature engineering extracts **5 categories** of features:
+
+### 1. Error Type Features
+- `error_type`: substitution, deletion, or addition
+
+### 2. Phoneme Property Features
+For substitutions:
+- `exp_type`, `exp_place`, `exp_voicing` (expected phoneme)
+- `act_type`, `act_place`, `act_voicing` (actual phoneme)
+- `same_type`, `same_place`, `same_voicing` (similarity)
+
+### 3. Linguistic Impact Features
+- `is_minimal_pair`: Does this create minimal pairs?
+- `is_noticeable`: Is this a known noticeable error?
+- Common patterns: `th_to_s`, `r_to_l`, `devoicing`, etc.
+
+### 4. Context Features
+- `prev_type`: Type of previous phoneme
+- `next_type`: Type of next phoneme
+
+### 5. Speaker Features
+- `native_language`: Native language
+- `is_l1_pattern`: Known L1-specific error?
+
+```{python}
+#| label: feature-statistics
+
+from feature_engineering import extract_features_batch
+
+# Extract features for all errors
+print("Extracting features for all errors...")
+all_features = extract_features_batch(errors)
+
+# Analyze feature distributions
+feature_df = pd.DataFrame(all_features)
+
+print(f"\nTotal features extracted: {len(all_features)}")
+print(f"Feature dimensions: {len(feature_df.columns)}")
+print(f"\nFeature names:")
+for i, col in enumerate(feature_df.columns, 1):
+    print(f"  {i:2d}. {col}")
+```
+
+---
+
+# 4. Method: Supervised Classification
+
+## Manual Severity Labeling
+
+The L2-ARCTIC corpus provides **error type** annotations but not **severity labels**.
+
+**Our approach**: Create severity labels using rule-based linguistic knowledge, then train a classifier to learn these patterns.
+
+**What we're evaluating**: Whether Naive Bayes can learn to reproduce our rule-based severity assessments from phonetic features. This validates that:
+1. Our linguistic rules are consistent and well-defined
+2. Phonetic features contain sufficient information to predict severity
+3. The approach could generalize if we had human-labeled training data
+
+### Labeling Rules
+
+```{python}
+#| label: labeling-rules
+#| code-fold: false
+
+from train_classifier import label_error_severity
+from phoneme_properties import is_minimal_pair
+
+# Show labeling logic
+print("SEVERITY LABELING RULES")
+print("=" * 60)
+
+print("\nHIGH SEVERITY:")
+print("  • Minimal pairs (TH→S: think→sink)")
+print("  • Consonant deletions (especially final consonants)")
+print("  • Cross-type substitutions (vowel→consonant)")
+
+print("\nMEDIUM SEVERITY:")
+print("  • Noticeable but non-critical errors")
+print("  • Voicing changes (T→D, S→Z)")
+print("  • Consonant additions")
+
+print("\nLOW SEVERITY:")
+print("  • Same-type substitutions with similar features")
+print("  • Vowel additions")
+print("  • Minor accent features")
+
+# Example labels
+examples = [
+    {'expected': 'TH', 'actual': 'S', 'error_type': 's', 'next_phoneme': 'IH'},
+    {'expected': 'R', 'actual': 'L', 'error_type': 's', 'next_phoneme': 'AY'},
+    {'expected': 'T', 'actual': '', 'error_type': 'd', 'next_phoneme': 'sil'},
+    {'expected': '', 'actual': 'AH', 'error_type': 'a', 'next_phoneme': 'T'},
+]
+
+print("\n" + "=" * 60)
+print("EXAMPLE LABELS")
+print("=" * 60)
+
+for ex in examples:
+    severity = label_error_severity(ex)
+    if ex['error_type'] == 's':
+        print(f"{ex['expected']:3s} → {ex['actual']:3s}  (substitution): {severity}")
+    elif ex['error_type'] == 'd':
+        print(f"{ex['expected']:3s} → ∅   (deletion):     {severity}")
+    else:
+        print(f"∅   → {ex['actual']:3s}  (addition):     {severity}")
+```
+
+## Naive Bayes Classifier
+
+We use **Naive Bayes** (Chapter 6) because:
+
+1. **Interpretable**: Shows which features are most informative
+2. **Efficient**: Fast training even with 18K examples
+3. **Probabilistic**: Provides confidence scores
+4. **Proven**: Standard baseline for text classification
+
+### How Training and Testing Works
+
+Think of it like studying for an exam:
+
+**Training Set (80% of data)**
+- These are the "practice problems" the model studies
+- Model learns patterns: "dental fricatives → usually HIGH severity"
+- Like reviewing sample questions before a test
+
+**Test Set (20% of data)**
+- These are the "actual exam questions"
+- Model has NEVER seen these examples during training
+- We measure: Can the model apply what it learned to new data?
+- Prevents "memorization" - forces the model to actually learn patterns
+
+**Why split?** If we tested on the same data we trained on, the model could just memorize answers without learning general patterns. The test set tells us if the model truly learned or just memorized.
+
+### Mathematical Formulation
+
+Given features $\mathbf{f}$, predict class $c$:
+
+$$P(c|\mathbf{f}) = \frac{P(c) \prod_{i} P(f_i|c)}{P(\mathbf{f})}$$
+
+**Decision rule**:
+$$\hat{c} = \arg\max_{c} P(c) \prod_{i} P(f_i|c)$$
+
+## Training the Classifier
+
+```{python}
+#| label: train-classifier
+#| output: true
+
+from train_classifier import prepare_training_data, train_classifier
+
+# Prepare training data (this will take a few minutes)
+print("Preparing training data...")
+print("(This includes parsing, feature extraction, and labeling)")
+print()
+
+training_data = prepare_training_data()
+
+print(f"\nTraining data prepared: {len(training_data)} examples")
+
+# Train classifier
+print("\nTraining Naive Bayes classifier...")
+classifier, test_set = train_classifier(training_data)
+
+print("\nTraining complete!")
+```
+
+The output above shows:
+1. **Class distribution** in training set
+2. **Most informative features** (ranked by informativeness)
+3. **Training/test split** sizes
+
+**Observation**: The top feature `exp_place='dental'` with high ratio confirms our linguistic intuition - TH sounds (dental fricatives) are exceptionally challenging for L2 learners and create high-severity errors. This validates decades of phonetics research.
+
+---
+
+# 5. Model Evaluation and Hyperparameter Tuning
+
+## Test Set Performance
+
+```{python}
+#| label: test-evaluation
+
+from evaluate_model import evaluate_classifier
+
+# Evaluate on test set
+eval_results = evaluate_classifier(classifier, test_set)
+```
+
+**Observation**: HIGH severity has high precision but lower recall - meaning when we flag something as severe, we're usually right, but we miss some critical errors. For language learning, this is acceptable - better to under-flag than over-flag.
+
+## Understanding the Evaluation Metrics
+
+**What we're measuring:**
+
+- **Accuracy**: Out of all predictions, how many were correct?
+  - Example: 4,033 correct out of 4,407 total = 91.5% accuracy
+
+- **Precision**: When the model predicts HIGH, how often is it actually HIGH?
+  - Example: If model says "HIGH" 100 times, 95 are truly HIGH = 95% precision
+
+- **Recall**: Of all the actual HIGH errors, how many did we catch?
+  - Example: Of 100 real HIGH errors, we caught 87 = 87% recall
+
+- **F1 Score**: Balance between precision and recall (harmonic mean)
+  - Useful when you care about both false positives and false negatives
+
+**What this means in practice:** High recall for HIGH severity means we're catching most critical errors (good for language learners). High precision means when we flag something as severe, we're usually right (builds trust).
+
+## Confusion Matrix Visualization
+
+```{python}
+#| label: confusion-matrix
+#| fig-cap: "Confusion matrix showing classification performance"
+
+import numpy as np
+
+# Get confusion matrix from results
+confusion = eval_results['confusion_matrix']
+classes = ['HIGH', 'MEDIUM', 'LOW']
+
+# Convert to numpy array
+conf_array = np.array([[confusion[true].get(pred, 0)
+                        for pred in classes]
+                       for true in classes])
+
+# Plot
+fig, ax = plt.subplots(figsize=(8, 6))
+sns.heatmap(conf_array, annot=True, fmt='d', cmap='Blues',
+            xticklabels=classes, yticklabels=classes,
+            ax=ax, cbar_kws={'label': 'Count'})
+ax.set_xlabel('Predicted Severity', fontsize=12)
+ax.set_ylabel('True Severity', fontsize=12)
+ax.set_title('Confusion Matrix', fontsize=14, fontweight='bold')
+
+plt.tight_layout()
+plt.show()
+
+# Accuracy per class
+print("\nPer-Class Performance:")
+print("-" * 60)
+for cls in classes:
+    correct = confusion[cls].get(cls, 0)
+    total = sum(confusion[cls].values())
+    accuracy = correct / total if total > 0 else 0
+    print(f"{cls:8s}: {correct:4d} / {total:4d} correct ({accuracy:5.1%})")
+```
+
+## Cross-Validation
+
+To ensure our results are robust, we perform **10-fold cross-validation**.
+
+### What is Cross-Validation?
+
+Instead of just one train/test split, we test the model 10 different ways:
+
+```
+Split data into 10 equal parts (folds)
+
+Round 1: Train on folds 1-9,  test on fold 10
+Round 2: Train on folds 1-8+10, test on fold 9
+Round 3: Train on folds 1-7+9-10, test on fold 8
+...
+Round 10: Train on folds 2-10, test on fold 1
+```
+
+**Why?** A single train/test split might get "lucky" or "unlucky". Cross-validation ensures our performance is **consistent** across different data splits.
+
+**What we measure:** Average accuracy across all 10 rounds ± standard deviation (shows consistency)
+
+```{python}
+#| label: cross-validation
+
+from evaluate_model import cross_validate
+
+# Perform 10-fold CV
+cv_results = cross_validate(training_data, n_folds=10)
+```
+
+```{python}
+#| label: cv-visualization
+#| fig-cap: "Cross-validation results across 10 folds"
+
+# Plot CV results
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+# Accuracy across folds
+folds = list(range(1, 11))
+accuracies = cv_results['fold_accuracies']
+mean_acc = cv_results['mean_accuracy']
+
+ax1.plot(folds, accuracies, 'o-', linewidth=2, markersize=8, color='#3498db')
+ax1.axhline(mean_acc, color='red', linestyle='--', label=f'Mean: {mean_acc:.3f}')
+ax1.fill_between(folds,
+                 mean_acc - cv_results['std_accuracy'],
+                 mean_acc + cv_results['std_accuracy'],
+                 alpha=0.2, color='#3498db')
+ax1.set_xlabel('Fold', fontsize=11)
+ax1.set_ylabel('Accuracy', fontsize=11)
+ax1.set_title('Cross-Validation: Accuracy', fontsize=12, fontweight='bold')
+ax1.legend()
+ax1.grid(alpha=0.3)
+
+# Macro-F1 across folds
+f1_scores = cv_results['fold_f1_scores']
+mean_f1 = cv_results['mean_f1']
+
+ax2.plot(folds, f1_scores, 'o-', linewidth=2, markersize=8, color='#2ecc71')
+ax2.axhline(mean_f1, color='red', linestyle='--', label=f'Mean: {mean_f1:.3f}')
+ax2.fill_between(folds,
+                 mean_f1 - cv_results['std_f1'],
+                 mean_f1 + cv_results['std_f1'],
+                 alpha=0.2, color='#2ecc71')
+ax2.set_xlabel('Fold', fontsize=11)
+ax2.set_ylabel('Macro-F1', fontsize=11)
+ax2.set_title('Cross-Validation: Macro-F1', fontsize=12, fontweight='bold')
+ax2.legend()
+ax2.grid(alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+print(f"\nCross-Validation Summary:")
+print(f"  Mean Accuracy: {mean_acc:.3f} ± {cv_results['std_accuracy']:.3f}")
+print(f"  Mean Macro-F1: {mean_f1:.3f} ± {cv_results['std_f1']:.3f}")
+```
+
+**Observation**: Very low standard deviation across folds proves our results are stable and not due to lucky data splits. The system consistently reproduces our linguistic rules.
+
+## Hyperparameter Tuning: Feature Selection
+
+We test **8 different feature combinations** to find the optimal set:
+
+```{python}
+#| label: hyperparameter-tuning
+
+from evaluate_model import test_feature_combinations
+
+# Test different feature combinations
+feature_results = test_feature_combinations(training_data)
+```
+
+```{python}
+#| label: feature-comparison
+#| fig-cap: "Performance comparison of different feature combinations"
+
+# Extract results
+feature_names = [r['name'] for r in feature_results]
+accuracies = [r['accuracy'] for r in feature_results]
+f1_scores = [r['macro_f1'] for r in feature_results]
+
+# Sort by F1 score
+sorted_indices = sorted(range(len(f1_scores)), key=lambda i: f1_scores[i], reverse=True)
+feature_names = [feature_names[i] for i in sorted_indices]
+accuracies = [accuracies[i] for i in sorted_indices]
+f1_scores = [f1_scores[i] for i in sorted_indices]
+
+# Plot
+fig, ax = plt.subplots(figsize=(12, 6))
+
+x = np.arange(len(feature_names))
+width = 0.35
+
+bars1 = ax.bar(x - width/2, accuracies, width, label='Accuracy', color='#3498db')
+bars2 = ax.bar(x + width/2, f1_scores, width, label='Macro-F1', color='#2ecc71')
+
+ax.set_ylabel('Score', fontsize=12)
+ax.set_xlabel('Feature Set', fontsize=12)
+ax.set_title('Feature Combination Comparison', fontsize=14, fontweight='bold')
+ax.set_xticks(x)
+ax.set_xticklabels(feature_names, rotation=45, ha='right')
+ax.legend()
+ax.grid(axis='y', alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+print("\nBest Feature Combination:")
+print(f"  {feature_names[0]}: Accuracy={accuracies[0]:.3f}, Macro-F1={f1_scores[0]:.3f}")
+```
+
+**Observation**: Similarity features alone achieve high performance, while pattern-specific features contribute less. This shows phonetic distance (same_type, same_place) is more predictive than memorizing specific error patterns like "th_to_s".
+
+---
+
+# 6. Results and Analysis
+
+## Summary of Results
+
+```{python}
+#| label: results-summary
+
+print("=" * 60)
+print("FINAL RESULTS SUMMARY")
+print("=" * 60)
+
+print(f"\nDataset:")
+print(f"  Total phoneme errors: {len(errors):,}")
+print(f"  Substitutions: {len([e for e in errors if e['error_type'] == 's']):,}")
+print(f"  Deletions: {len([e for e in errors if e['error_type'] == 'd']):,}")
+print(f"  Additions: {len([e for e in errors if e['error_type'] == 'a']):,}")
+
+print(f"\nFeature Engineering:")
+print(f"  Feature dimensions: {len(all_features[0])} features per error")
+print(f"  Feature categories: Error type, Phoneme properties, Linguistic impact, Context, L1")
+
+print(f"\nClassification Performance:")
+print(f"  Overall Accuracy: {eval_results['accuracy']:.3f}")
+print(f"  Macro-averaged F1: {eval_results['macro_f1']:.3f}")
+
+print(f"\nPer-Class Metrics:")
+for cls in ['HIGH', 'MEDIUM', 'LOW']:
+    metrics = eval_results['class_metrics'][cls]
+    print(f"  {cls:8s}: P={metrics['precision']:.3f}, R={metrics['recall']:.3f}, F1={metrics['f1']:.3f}")
+
+print(f"\nCross-Validation (10-fold):")
+print(f"  Mean Accuracy: {cv_results['mean_accuracy']:.3f} ± {cv_results['std_accuracy']:.3f}")
+print(f"  Mean Macro-F1: {cv_results['mean_f1']:.3f} ± {cv_results['std_f1']:.3f}")
+
+# Get the actual best model (highest F1 score)
+best_model = max(feature_results, key=lambda x: x['macro_f1'])
+print(f"\nBest Feature Set: {best_model['name']}")
+print(f"  Accuracy: {best_model['accuracy']:.3f}")
+print(f"  Macro-F1: {best_model['macro_f1']:.3f}")
+```
+
+## Most Informative Features
+
+```{python}
+#| label: informative-features-viz
+#| fig-cap: "Top 15 most informative features for severity classification"
+
+# The classifier already showed these during training
+# We can visualize them here
+
+print("Top features for predicting HIGH severity:")
+print("  • is_minimal_pair=True (TH→S, R→L substitutions)")
+print("  • error_type='d' (deletions are usually severe)")
+print("  • same_type=False (cross-type substitutions)")
+print("  • deleted_consonant=True (missing consonants)")
+
+print("\nTop features for predicting LOW severity:")
+print("  • same_type=True, same_place=True (similar phonemes)")
+print("  • added_vowel=True (vowel additions are minor)")
+print("  • error_type='a' (additions less severe)")
+
+print("\nTop features for predicting MEDIUM severity:")
+print("  • is_noticeable=True (known noticeable errors)")
+print("  • voicing/devoicing patterns")
+print("  • is_l1_pattern=True (common L1-specific errors)")
+```
+
+## Error Analysis
+
+Let's examine some specific predictions:
+
+```{python}
+#| label: error-analysis
+
+import random
+
+# Sample some test examples
+random.seed(42)
+sample_indices = random.sample(range(len(test_set)), 10)
+
+print("=" * 80)
+print("SAMPLE PREDICTIONS")
+print("=" * 80)
+
+for i in sample_indices:
+    features, true_label = test_set[i]
+    pred_label = classifier.classify(features)
+
+    # Reconstruct error info from features
+    error_type = features.get('error_type', '?')
+
+    # Get probabilities
+    prob_dist = classifier.prob_classify(features)
+    confidence = prob_dist.prob(pred_label)
+
+    correct = "✓" if pred_label == true_label else "✗"
+
+    print(f"\n{correct} Type: {error_type}  |  True: {true_label:6s}  |  Pred: {pred_label:6s}  |  Conf: {confidence:.2f}")
+
+    # Show key features
+    if error_type == 's':
+        exp = features.get('exp_type', '?')
+        act = features.get('act_type', '?')
+        minimal = features.get('is_minimal_pair', False)
+        print(f"   Substitution: {exp}→{act}, Minimal pair: {minimal}")
+    elif error_type == 'd':
+        deleted = features.get('deleted_type', '?')
+        final = features.get('final_consonant', False)
+        print(f"   Deletion: {deleted}, Final consonant: {final}")
+    else:
+        added = features.get('added_type', '?')
+        print(f"   Addition: {added}")
+```
+
+## L1-Specific Patterns
+
+```{python}
+#| label: l1-patterns
+#| fig-cap: "Severity distribution by native language"
+
+# Analyze predictions by L1
+l1_severity = {}
+
+for features, label in training_data[:1000]:  # Sample for speed
+    l1 = features.get('native_language', 'Unknown')
+    if l1 not in l1_severity:
+        l1_severity[l1] = {'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
+    l1_severity[l1][label] += 1
+
+# Plot
+fig, ax = plt.subplots(figsize=(12, 6))
+
+l1_langs = list(l1_severity.keys())
+high_counts = [l1_severity[l1]['HIGH'] for l1 in l1_langs]
+med_counts = [l1_severity[l1]['MEDIUM'] for l1 in l1_langs]
+low_counts = [l1_severity[l1]['LOW'] for l1 in l1_langs]
+
+x = np.arange(len(l1_langs))
+width = 0.25
+
+ax.bar(x - width, high_counts, width, label='HIGH', color='#e74c3c')
+ax.bar(x, med_counts, width, label='MEDIUM', color='#f39c12')
+ax.bar(x + width, low_counts, width, label='LOW', color='#2ecc71')
+
+ax.set_ylabel('Number of Errors', fontsize=12)
+ax.set_xlabel('Native Language', fontsize=12)
+ax.set_title('Error Severity Distribution by L1', fontsize=14, fontweight='bold')
+ax.set_xticks(x)
+ax.set_xticklabels(l1_langs, rotation=45, ha='right')
+ax.legend()
+ax.grid(axis='y', alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+**Observation**: Different L1 backgrounds show varying severity distributions. For example, some languages may show higher proportions of HIGH severity errors due to phonological differences from English. This supports the potential for L1-specific feedback in language learning applications.
+
+---
+
+# 7. Conclusions and Practical Implications
+
+## Key Findings
+
+1. **Rule-based severity labeling is learnable and consistent**
+   - Overall accuracy: 91.5% ± 0.2% (excellent performance across 10-fold CV)
+   - Model successfully learns to reproduce linguistic rule patterns
+   - HIGH severity errors detected with 87.6% recall
+   - Low variance indicates stable, reliable predictions
+
+2. **Feature engineering demonstrates clear value**
+   - All features: 90.9% vs. baseline: 73.4% (+17.5 percentage points)
+   - Similarity features (same_type, same_place) most valuable (89.0% alone)
+   - L1-specific patterns add minimal predictive power (73.4%)
+
+3. **Dental fricatives (TH sounds) are key severity indicators**
+   - `exp_place='dental'` is 950× more likely for HIGH vs. LOW severity
+   - Validates linguistic theory about L2 English pronunciation challenges
+   - TH→S substitution correctly identified as high severity (minimal pairs)
+
+4. **Naive Bayes provides interpretability**
+   - Shows which phonetic properties drive severity predictions
+   - Provides confidence scores for each classification
+   - Fast training (seconds) suitable for iterative development
+
+## Practical Applications
+
+### 1. Language Learning Apps
+- **Real-time feedback**: Classify errors during practice
+- **Prioritized correction**: Focus on HIGH severity errors first
+- **Progress tracking**: Monitor improvement over time
+
+### 2. Teacher Assistance Tools
+- **Automated screening**: Identify students needing attention
+- **Lesson planning**: Target common HIGH severity patterns
+- **Assessment**: Consistent severity ratings across students
+
+### 3. Pronunciation Assessment
+- **Placement testing**: Estimate proficiency level
+- **Proficiency scoring**: Weight errors by severity
+- **Diagnostic feedback**: Specific recommendations
+
+### 4. Research Tools
+- **L1 transfer analysis**: Identify language-specific patterns
+- **Corpus annotation**: Semi-automated severity labeling
+- **Model comparison**: Benchmark for future research
+
+## Limitations
+
+1. **Rule-based labels create circularity**: Severity labels are derived from linguistic rules, not validated by human experts (teachers or linguists). High accuracy (91.5%) reflects the model learning our labeling rules rather than measuring objective severity.
+
+2. **Feature-label overlap**: Some features (e.g., `is_minimal_pair`) directly encode labeling criteria, which inflates apparent performance. The model isn't discovering new patterns—it's reproducing our assumptions.
+
+3. **No human validation**: Requires testing against teacher severity assessments to confirm real-world validity and usefulness for language learning applications.
+
+4. **Context limitations**: Phoneme-level features miss word-level and sentence-level context that affect perceived severity.
+
+5. **Acoustic features missing**: Only symbolic phoneme information used; acoustic properties (duration, pitch, formants) could provide additional predictive signal.
+
+6. **Domain specificity**: Trained on L2-ARCTIC read speech; may not generalize to spontaneous speech or other accents.
+
+7. **L1 analysis uses subsample**: The L1-specific patterns chart analyzes 1,000 errors for speed; full dataset analysis would provide more robust patterns.
+
+## Future Work
+
+### Short-term Improvements
+1. **Test other classifiers**: MaxEnt, Decision Trees, SVM
+2. **Add acoustic features**: Duration, pitch, formants from audio
+3. **Expand context**: Word-level and sentence-level features
+4. **Active learning**: Semi-automated labeling with human verification
+
+### Long-term Directions
+1. **Per-language models**: Separate classifiers for each L1
+2. **Multi-task learning**: Joint prediction of error type and severity
+3. **Neural approaches**: BERT-style models for phoneme sequences
+4. **Real-time systems**: Low-latency classification for live feedback
+
+## Course Connections
+
+This project demonstrates key concepts from **Chapter 6: Naive Bayes**:
+
+- ✅ Supervised classification with labeled training data
+- ✅ Feature engineering from domain knowledge
+- ✅ Training/test split and cross-validation
+- ✅ Evaluation with precision, recall, F1
+- ✅ Interpretability through feature analysis
+- ✅ Hyperparameter tuning (feature selection)
+
+---
+
+# References
+
+1. **Zhao, G., Sonsaat, S., Silpachai, A., Lucic, I., Chukharev-Hudilainen, E., Levis, J., & Gutierrez-Osuna, R.** (2018). L2-ARCTIC: A non-native English speech corpus. *INTERSPEECH 2018*, 2783-2787.
+
+2. **Jurafsky, D., & Martin, J. H.** (2023). *Speech and Language Processing* (3rd ed.). Chapter 6: Naive Bayes and Sentiment Classification. https://web.stanford.edu/~jurafsky/slp3/
+
+3. **Bird, S., Klein, E., & Loper, E.** (2009). *Natural Language Processing with Python*. O'Reilly Media. NLTK: https://www.nltk.org/
+
+4. **Levis, J. M.** (2005). Changing contexts and shifting paradigms in pronunciation teaching. *TESOL Quarterly*, 39(3), 369-377.
+
+5. **Flege, J. E.** (1995). Second language speech learning: Theory, findings, and problems. In W. Strange (Ed.), *Speech perception and linguistic experience: Issues in cross-language research* (pp. 233-277).
+
+---
+
+# Appendix: Code Implementation
+
+All code is available in the project repository:
+
+- `parse_annotations.py`: TextGrid parsing and error extraction
+- `phoneme_properties.py`: Linguistic knowledge base (40 phonemes)
+- `feature_engineering.py`: Feature extraction from errors
+- `train_classifier.py`: Naive Bayes training with severity labeling
+- `evaluate_model.py`: Evaluation metrics and hyperparameter tuning
+
+**To reproduce results**:
+
+```bash
+# Install dependencies (using uv)
+uv pip install -r requirements.txt
+
+# Download NLTK data
+uv run python -c "import nltk; nltk.download('punkt')"
+
+# Generate this presentation (runs all code)
+quarto render nlp_presentation_final.qmd
+```
+
+**Dataset**: L2-ARCTIC corpus available at https://psi.engr.tamu.edu/l2-arctic-corpus/
+
+---
+
+<div style="text-align: center; margin-top: 50px; padding: 20px; background-color: #ecf0f1; border-radius: 10px;">
+<h2>Thank You!</h2>
+<p style="font-size: 18px;">Questions and Discussion</p>
+</div>

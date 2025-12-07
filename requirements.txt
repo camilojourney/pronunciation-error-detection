@@ -1,0 +1,15 @@
+# Core NLP library
+nltk>=3.8.1
+
+# TextGrid parsing
+textgrid>=1.5
+
+# Data analysis and visualization (for presentation)
+pandas>=2.0.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Jupyter/Quarto for presentation
+jupyter>=1.0.0
+nbformat>=5.9.0
+nbclient>=0.8.0
