@@ -11,14 +11,17 @@ Run this Quarto notebook to generate the complete project report with all code, 
 ## 🚀 Quick Start
 
 ```bash
-# 1. Install dependencies
-uv pip install -r requirements.txt
+# 1. Set up environment
+uv sync
 
 # 2. Download NLTK data
 uv run python -c "import nltk; nltk.download('punkt')"
 
 # 3. Generate presentation
 quarto render nlp_presentation_final.qmd
+
+# 4. Open the presentation
+open nlp_presentation_final.html
 ```
 
 ## 📁 Project Files
@@ -30,8 +33,7 @@ Essential Files:
 ├── phoneme_properties.py         → Linguistic knowledge base
 ├── feature_engineering.py        → Feature extraction
 ├── train_classifier.py           → Train Naive Bayes classifier
-├── evaluate_model.py             → Model evaluation
-└── requirements.txt              → Dependencies
+└── evaluate_model.py             → Model evaluation
 
 Data:
 └── l2arctic_release_v5/          → L2-ARCTIC corpus (already present)
