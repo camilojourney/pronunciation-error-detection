@@ -10,7 +10,7 @@ echo "=========================================="
 
 # Step 1: Install dependencies
 echo -e "\n[1/5] Installing dependencies with uv..."
-uv pip install -r requirements.txt
+uv sync
 
 # Step 2: Download NLTK data
 echo -e "\n[2/5] Downloading NLTK data..."
