@@ -42,7 +42,8 @@ If you just want to see it work quickly:
 
 ```bash
 # 1. Install dependencies
-pip install -r requirements.txt
+uv sync
+# or: pip install -r requirements.txt
 
 # 2. Download NLTK data
 python -c "import nltk; nltk.download('punkt')"
@@ -79,7 +80,8 @@ python --version
 
 ```bash
 # Install all required packages
-pip install -r requirements.txt
+uv sync
+# or: pip install -r requirements.txt
 
 # Verify installation
 python -c "import nltk, textgrid, pandas, matplotlib, seaborn; print('✓ All packages installed')"

@@ -1,3 +1,4 @@
+# Legacy pip path. Canonical install is `uv sync` (see pyproject.toml / README).
 # Core NLP library
 nltk>=3.8.1
 

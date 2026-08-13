@@ -957,7 +957,7 @@ All code is available in the project repository:
 
 ```bash
 # Install dependencies (using uv)
-uv pip install -r requirements.txt
+uv sync
 
 # Download NLTK data
 uv run python -c "import nltk; nltk.download('punkt')"
